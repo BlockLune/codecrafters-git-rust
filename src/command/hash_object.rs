@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{compress_zlib, compute_sha1};
+use crate::utils::{compress_zlib, compute_sha1};
 
 pub fn run(file_path: &Path, write_flag: bool) -> Result<()> {
     let file_content = fs::read(file_path)?;

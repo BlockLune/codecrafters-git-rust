@@ -6,7 +6,6 @@ mod command;
 mod utils;
 
 use crate::cli::{Cli, Commands};
-use crate::utils::{compress_zlib, compute_sha1};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

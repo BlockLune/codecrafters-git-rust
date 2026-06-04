@@ -1,8 +1,6 @@
 use anyhow::{Result, bail};
-use std::fs;
-use std::path::PathBuf;
 
-use crate::utils::{decompress_zlib, split_header_content};
+use crate::utils::get_decompressed_header_content_from_sha;
 
 #[allow(unused)]
 pub struct TreeEntry {
@@ -15,11 +13,7 @@ pub fn run(tree_sha: &str, name_only_flag: bool) -> Result<()> {
     if !name_only_flag {
         bail!("only --name-only mode is supported");
     }
-    let (dir, filename) = tree_sha.split_at(2);
-    let path = PathBuf::from(".git/objects/").join(dir).join(filename);
-    let data = fs::read(path)?;
-    let decompressed = decompress_zlib(&data)?;
-    let (_, content) = split_header_content(&decompressed)?;
+    let (_, content) = get_decompressed_header_content_from_sha(tree_sha)?;
     let tree_entries = parse_tree_entries(&content)?;
 
     for tree_entry in tree_entries {
