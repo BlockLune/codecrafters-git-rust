@@ -13,7 +13,9 @@ pub fn run(file_path: &Path, write_flag: bool) -> Result<()> {
 
     if write_flag {
         let (dir, filename) = sha1.split_at(2);
-        let path = PathBuf::from(".git/objects/").join(dir).join(filename);
+        let dir_path = PathBuf::from(".git/objects/").join(dir);
+        fs::create_dir_all(&dir_path)?;
+        let path = dir_path.join(filename);
         fs::write(path, compress_zlib(&data)?)?;
     }
 
