@@ -6,7 +6,7 @@ mod command;
 mod utils;
 
 use crate::cli::{Cli, Commands};
-use crate::utils::{compress_zlib, compute_sha1, decompress_zlib};
+use crate::utils::{compress_zlib, compute_sha1};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -20,6 +20,10 @@ fn main() -> Result<()> {
             write_flag,
             file_path,
         } => command::hash_object::run(&file_path, write_flag),
+        Commands::LsTree {
+            name_only_flag,
+            tree_sha,
+        } => command::ls_tree::run(&tree_sha, name_only_flag),
     }?;
 
     Ok(())

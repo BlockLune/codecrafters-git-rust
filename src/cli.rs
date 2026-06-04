@@ -20,4 +20,9 @@ pub enum Commands {
         write_flag: bool,
         file_path: PathBuf,
     },
+    LsTree {
+        #[arg(long = "name-only")]
+        name_only_flag: bool,
+        tree_sha: String,
+    },
 }
