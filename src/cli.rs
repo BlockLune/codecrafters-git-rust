@@ -12,6 +12,7 @@ pub enum Commands {
     Init,
     CatFile {
         #[arg(short = 'p')]
+        pretty_print_flag: bool,
         blob_sha: String,
     },
     HashObject {

@@ -12,7 +12,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Init => command::init::run(),
-        Commands::CatFile { blob_sha } => command::cat_file::run(&blob_sha),
+        Commands::CatFile {
+            pretty_print_flag,
+            blob_sha,
+        } => command::cat_file::run(&blob_sha, pretty_print_flag),
         Commands::HashObject {
             write_flag,
             file_path,
