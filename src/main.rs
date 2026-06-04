@@ -55,7 +55,7 @@ fn main() -> Result<()> {
         if write_flag {
             let (dir, filename) = sha1.split_at(2);
             let path = PathBuf::from(".git/objects/").join(dir).join(filename);
-            fs::write(path, compress_zlib(&file_content)?)?;
+            fs::write(path, compress_zlib(&data)?)?;
         }
     } else {
         println!("unknown command: {}", args[1])
