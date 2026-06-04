@@ -1,11 +1,12 @@
-use crate::fs;
 use anyhow::Result;
+use std::fs;
 
 pub fn run() -> Result<()> {
-    fs::create_dir(".git").unwrap();
-    fs::create_dir(".git/objects").unwrap();
-    fs::create_dir(".git/refs").unwrap();
-    fs::write(".git/HEAD", "ref: refs/heads/main\n").unwrap();
+    fs::create_dir(".git")?;
+    fs::create_dir(".git/objects")?;
+    fs::create_dir(".git/refs")?;
+    fs::write(".git/HEAD", "ref: refs/heads/main\n")?;
     println!("Initialized git directory");
+
     Ok(())
 }

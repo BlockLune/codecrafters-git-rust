@@ -16,5 +16,6 @@ pub fn run(file_path: &Path, write_flag: bool) -> Result<()> {
         let path = PathBuf::from(".git/objects/").join(dir).join(filename);
         fs::write(path, compress_zlib(&data)?)?;
     }
+
     Ok(())
 }
