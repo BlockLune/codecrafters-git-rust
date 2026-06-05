@@ -24,12 +24,8 @@ fn compress_zlib(data: &[u8]) -> Result<Vec<u8>> {
     Ok(compressed)
 }
 
-pub fn compute_sha1(data: &[u8]) -> Result<String> {
-    Ok(hex::encode(Sha1::digest(data)))
-}
-
-pub fn compute_sha1_raw(data: &[u8]) -> Result<Vec<u8>> {
-    Ok(Vec::from(&Sha1::digest(data)[..]))
+pub fn compute_sha1(data: &[u8]) -> Vec<u8> {
+    Vec::from(&Sha1::digest(data)[..])
 }
 
 fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
@@ -61,8 +57,9 @@ pub fn get_decompressed_header_content_from_sha(obj_sha: &str) -> Result<(Vec<u8
     split_header_content(&decompressed)
 }
 
-pub fn write_obj_to_disk(obj_sha: &str, decompressed: &[u8]) -> Result<()> {
-    let (dir, filename) = obj_sha.split_at(2);
+pub fn write_obj_to_disk(obj_sha: &[u8], decompressed: &[u8]) -> Result<()> {
+    let obj_sha_hex = hex::encode(obj_sha);
+    let (dir, filename) = obj_sha_hex.split_at(2);
     let dir_path = PathBuf::from(".git/objects/").join(dir);
     fs::create_dir_all(&dir_path)?;
     let path = dir_path.join(filename);

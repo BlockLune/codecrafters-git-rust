@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::utils::{compute_sha1, compute_sha1_raw, write_obj_to_disk};
+use crate::utils::{compute_sha1, write_obj_to_disk};
 
 pub struct BlobObject(Vec<u8>);
 
@@ -11,15 +11,11 @@ impl BlobObject {
         BlobObject(data)
     }
 
-    pub fn sha1_raw(&self) -> Result<Vec<u8>> {
-        compute_sha1_raw(&self.0)
-    }
-
-    pub fn sha1(&self) -> Result<String> {
+    pub fn sha1(&self) -> Vec<u8> {
         compute_sha1(&self.0)
     }
 
     pub fn write_to_disk(&self) -> Result<()> {
-        write_obj_to_disk(&self.sha1()?, &self.0)
+        write_obj_to_disk(&self.sha1(), &self.0)
     }
 }
