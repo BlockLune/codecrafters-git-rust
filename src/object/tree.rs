@@ -3,6 +3,7 @@ use anyhow::Result;
 use crate::utils::{compute_sha1, write_obj_to_disk};
 
 pub struct TreeEntry {
+    #[allow(unused)]
     pub mode: Vec<u8>,
     pub name: Vec<u8>,
     pub sha1_20: Vec<u8>,
