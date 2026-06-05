@@ -25,7 +25,7 @@ impl TreeObject {
     pub fn new(entries: &[TreeEntry]) -> Self {
         let mut content: Vec<u8> = Vec::new();
         for entry in entries {
-            content.extend_from_slice(&entry.name);
+            content.extend_from_slice(&entry.mode);
             content.push(b' ');
             content.extend_from_slice(&entry.name);
             content.push(b'\0');
