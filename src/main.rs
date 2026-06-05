@@ -3,8 +3,8 @@ use clap::Parser;
 
 mod cli;
 mod command;
-mod utils;
 mod object;
+mod utils;
 
 use crate::cli::{Cli, Commands};
 
@@ -25,6 +25,11 @@ fn main() -> Result<()> {
             tree_sha,
         } => command::ls_tree::run(&tree_sha, name_only_flag),
         Commands::WriteTree => command::write_tree::run(),
+        Commands::CommitTree {
+            tree_sha,
+            parent_sha,
+            message,
+        } => command::commit_tree::run(&tree_sha, &parent_sha.unwrap_or_default(), &message),
     }?;
 
     Ok(())

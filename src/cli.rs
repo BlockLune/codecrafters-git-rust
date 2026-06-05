@@ -26,4 +26,11 @@ pub enum Commands {
         tree_sha: String,
     },
     WriteTree,
+    CommitTree {
+        tree_sha: String,
+        #[arg(short = 'p')]
+        parent_sha: Option<String>,
+        #[arg(short = 'm')]
+        message: String,
+    },
 }
