@@ -38,9 +38,13 @@ fn parse_tree_entries(content: &[u8]) -> Result<Vec<TreeEntry>> {
             .unwrap();
         let name = Vec::from(&content[space_pos + 1..null_pos]);
 
-        let sha_20 = Vec::from(&content[null_pos + 1..=null_pos + 20]);
+        let sha1_20 = Vec::from(&content[null_pos + 1..=null_pos + 20]);
 
-        let entry = TreeEntry { mode, name, sha_20 };
+        let entry = TreeEntry {
+            mode,
+            name,
+            sha1_20,
+        };
         entries.push(entry);
 
         i = null_pos + 1 + 20

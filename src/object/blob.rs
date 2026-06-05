@@ -8,7 +8,7 @@ impl BlobObject {
     pub fn new(file_content: &[u8]) -> Self {
         let mut data = Vec::from(format!("blob {}\0", file_content.len()).as_bytes());
         data.extend_from_slice(&file_content);
-        BlobObject(data)
+        Self(data)
     }
 
     pub fn sha1(&self) -> Vec<u8> {
