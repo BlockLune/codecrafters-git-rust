@@ -1,22 +1,15 @@
 use anyhow::Result;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::utils::{compress_zlib, compute_sha1};
+use crate::object::blob::BlobObject;
 
 pub fn run(file_path: &Path, write_flag: bool) -> Result<()> {
     let file_content = fs::read(file_path)?;
-    let mut data = Vec::from(format!("blob {}\0", file_content.len()).as_bytes());
-    data.extend_from_slice(&file_content);
-    let sha1 = compute_sha1(&data)?;
-    println!("{}", sha1);
-
+    let blob_obj = BlobObject::new(&file_content);
+    println!("{}", blob_obj.sha1()?);
     if write_flag {
-        let (dir, filename) = sha1.split_at(2);
-        let dir_path = PathBuf::from(".git/objects/").join(dir);
-        fs::create_dir_all(&dir_path)?;
-        let path = dir_path.join(filename);
-        fs::write(path, compress_zlib(&data)?)?;
+        blob_obj.write_to_disk()?;
     }
 
     Ok(())

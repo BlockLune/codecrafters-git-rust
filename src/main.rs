@@ -4,6 +4,7 @@ use clap::Parser;
 mod cli;
 mod command;
 mod utils;
+mod object;
 
 use crate::cli::{Cli, Commands};
 
@@ -23,6 +24,7 @@ fn main() -> Result<()> {
             name_only_flag,
             tree_sha,
         } => command::ls_tree::run(&tree_sha, name_only_flag),
+        Commands::WriteTree => command::write_tree::run(),
     }?;
 
     Ok(())

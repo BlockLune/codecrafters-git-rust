@@ -1,13 +1,7 @@
 use anyhow::{Result, bail};
 
 use crate::utils::get_decompressed_header_content_from_sha;
-
-#[allow(unused)]
-pub struct TreeEntry {
-    pub mode: Vec<u8>,
-    pub name: Vec<u8>,
-    pub hash_bin: Vec<u8>,
-}
+use crate::object::tree::TreeEntry;
 
 pub fn run(tree_sha: &str, name_only_flag: bool) -> Result<()> {
     if !name_only_flag {
@@ -44,12 +38,12 @@ fn parse_tree_entries(content: &[u8]) -> Result<Vec<TreeEntry>> {
             .unwrap();
         let name = Vec::from(&content[space_pos + 1..null_pos]);
 
-        let hash_bin = Vec::from(&content[null_pos + 1..=null_pos + 20]);
+        let sha_raw_20 = Vec::from(&content[null_pos + 1..=null_pos + 20]);
 
         let entry = TreeEntry {
             mode,
             name,
-            hash_bin,
+            sha_raw_20,
         };
         entries.push(entry);
 

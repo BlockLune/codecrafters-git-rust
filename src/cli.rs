@@ -25,4 +25,5 @@ pub enum Commands {
         name_only_flag: bool,
         tree_sha: String,
     },
+    WriteTree,
 }
