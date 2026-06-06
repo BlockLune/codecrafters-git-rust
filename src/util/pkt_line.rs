@@ -1,7 +1,7 @@
 use anyhow::Result;
 use bytes::Bytes;
 
-use crate::constant::PKT_LINE_LEN_BYTES;
+const PKT_LINE_LEN_BYTES: usize = 4;
 
 pub fn encode(payload: &str) -> String {
     let len = payload.as_bytes().len() + PKT_LINE_LEN_BYTES;
