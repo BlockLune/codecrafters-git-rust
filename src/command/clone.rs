@@ -5,16 +5,12 @@ use std::collections::HashMap;
 use crate::util::pkt_line;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
-    let canonicalized_repo_url = canonicalize_repo_url(repo_url);
-    let local_dir = if local_dir.is_empty() {
-        extract_local_dir_from_canonicalized_repo_url(&canonicalized_repo_url)?
-    } else {
-        local_dir.to_string()
-    };
+    let repo_url = canonicalize_repo_url(repo_url);
+    let local_dir = resolve_local_dir(&repo_url, local_dir);
 
     dbg!(&local_dir);
 
-    let refs_data = get_refs_data(&canonicalized_repo_url).await?;
+    let refs_data = get_refs_data(&repo_url).await?;
     let ref_discovery = RefDiscovery::parse(refs_data)?;
     let head_sha1_hex = hex::encode(ref_discovery.head_sha1()?);
     let want_payload = format!("want {}\n", head_sha1_hex);
@@ -26,7 +22,7 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     let client = reqwest::Client::new();
     let res = client
-        .post(format!("{}/git-upload-pack", canonicalized_repo_url))
+        .post(format!("{}/git-upload-pack", repo_url))
         .header("Content-Type", "application/x-git-upload-pack-request")
         .body(body)
         .send()
@@ -45,17 +41,21 @@ fn canonicalize_repo_url(repo_url: &str) -> String {
     canonicalized
 }
 
-fn extract_local_dir_from_canonicalized_repo_url(url: &str) -> Result<String> {
-    if !url.contains('/') {
+fn resolve_local_dir(repo_url: &str, local_dir: &str) -> Result<String> {
+    if !local_dir.is_empty() {
+        return Ok(local_dir.to_string());
+    }
+
+    if !repo_url.contains('/') {
         bail!("invalid url");
     }
-    let last_part = url
+
+    Ok(repo_url
         .split('/')
         .last()
         .unwrap()
         .trim_end_matches(".git")
-        .to_string();
-    Ok(last_part)
+        .to_string())
 }
 
 async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
