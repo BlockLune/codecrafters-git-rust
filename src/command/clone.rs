@@ -2,6 +2,8 @@ use anyhow::{Context, Result, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
 
+const PKT_LINE_LEN_BYTES: usize = 4;
+
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let canonicalized_repo_url = canonicalize_repo_url(repo_url);
     let local_dir = if local_dir.is_empty() {
@@ -47,10 +49,31 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     dbg!(&git_refs);
 
     let symref_head = find_symref_head(compatibilities).context("`symref=HEAD:` not found")?;
-    let head_sha1 = git_refs.get(&"HEAD".to_string()).context("HEAD not found")?.sha1();
+    let head_sha1 = git_refs
+        .get(&"HEAD".to_string())
+        .context("HEAD not found")?
+        .sha1();
+    let head_sha1_hex = hex::encode(head_sha1);
 
     dbg!(&symref_head);
-    dbg!(hex::encode(head_sha1));
+    dbg!(&head_sha1_hex);
+
+    let want_payload = format!("want {}\n", head_sha1_hex);
+    let want_pkt = pkt_line(&want_payload);
+    let done_pkt = pkt_line("done\n");
+    let body = Bytes::from(format!("{}{}0000", want_pkt, done_pkt));
+
+    dbg!(&body);
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{}/git-upload-pack", canonicalized_repo_url))
+        .header("Content-Type", "application/x-git-upload-pack-request")
+        .body(body)
+        .send()
+        .await?;
+
+    dbg!(&res);
 
     Ok(())
 }
@@ -86,13 +109,13 @@ fn parse_payloads(data: Bytes) -> Result<Vec<Bytes>> {
     let mut payloads = Vec::new();
     let mut i = 0;
     while i < data.len() {
-        let length_hex_string = String::from_utf8_lossy(&data[i..i + 4]);
+        let length_hex_string = String::from_utf8_lossy(&data[i..i + PKT_LINE_LEN_BYTES]);
         let length = usize::from_str_radix(&length_hex_string, 16)?;
         if length == 0 {
             i += 4;
             continue;
         }
-        let payload = Bytes::copy_from_slice(&data[i + 4..i + length]);
+        let payload = Bytes::copy_from_slice(&data[i + PKT_LINE_LEN_BYTES..i + length]);
         payloads.push(payload);
         i += length;
     }
@@ -125,4 +148,9 @@ fn find_symref_head(compatibilites: Vec<String>) -> Option<String> {
         }
     }
     None
+}
+
+fn pkt_line(payload: &str) -> String {
+    let len = payload.as_bytes().len() + PKT_LINE_LEN_BYTES;
+    format!("{:04x}{}", len, payload)
 }
