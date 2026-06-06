@@ -8,7 +8,8 @@ mod utils;
 
 use crate::cli::{Cli, Commands};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Init => command::init::run(),
@@ -33,7 +34,7 @@ fn main() -> Result<()> {
         Commands::Clone {
             repo_url,
             local_dir,
-        } => command::clone::run(&repo_url, &local_dir.unwrap_or_default()),
+        } => command::clone::run(&repo_url, &local_dir.unwrap_or_default()).await,
     }?;
 
     Ok(())
