@@ -3,7 +3,7 @@ use sha1::{Digest, Sha1};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::utils::compress_zlib;
+use crate::util::compress_zlib;
 
 pub(crate) mod blob;
 pub(crate) mod commit;

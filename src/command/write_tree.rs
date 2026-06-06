@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::object::GitObject;
 use crate::object::blob::BlobObject;
 use crate::object::tree::{TreeEntry, TreeObject};
-use crate::utils::git_mode;
+use crate::util::git_mode;
 
 pub fn run() -> Result<()> {
     let sha1 = write_tree_for_dir(Path::new("."))?;

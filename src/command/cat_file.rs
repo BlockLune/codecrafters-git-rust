@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use crate::utils::get_decompressed_header_content_from_sha;
+use crate::util::get_decompressed_header_content_from_sha;
 
 pub fn run(blob_sha: &str, pretty_print_flag: bool) -> Result<()> {
     if !pretty_print_flag {

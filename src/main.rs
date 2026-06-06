@@ -4,7 +4,7 @@ use clap::Parser;
 mod cli;
 mod command;
 mod object;
-mod utils;
+mod util;
 
 use crate::cli::{Cli, Commands};
 

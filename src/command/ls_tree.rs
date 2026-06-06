@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 
 use crate::object::tree::TreeEntry;
-use crate::utils::get_decompressed_header_content_from_sha;
+use crate::util::get_decompressed_header_content_from_sha;
 
 pub fn run(tree_sha: &str, name_only_flag: bool) -> Result<()> {
     if !name_only_flag {
