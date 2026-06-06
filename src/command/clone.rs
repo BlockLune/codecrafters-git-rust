@@ -61,7 +61,7 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let want_payload = format!("want {}\n", head_sha1_hex);
     let want_pkt = pkt_line(&want_payload);
     let done_pkt = pkt_line("done\n");
-    let body = Bytes::from(format!("{}{}0000", want_pkt, done_pkt));
+    let body = Bytes::from(format!("{}0000{}", want_pkt, done_pkt));
 
     dbg!(&body);
 
