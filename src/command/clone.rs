@@ -93,8 +93,10 @@ struct RefDiscovery {
 impl RefDiscovery {
     pub fn parse(data: Bytes) -> Result<Self> {
         let payloads = pkt_line::decode(data)?;
-        let mut git_refs = HashMap::new();
+
+        let mut refs = HashMap::new();
         let mut capbilities = Vec::new();
+
         for payload in payloads.iter().skip(1) {
             const SHA1_HEX_LEN_BYTES: usize = 40;
 
@@ -118,11 +120,11 @@ impl RefDiscovery {
                 ref_name = String::from_utf8_lossy(rest);
             }
             let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
-            git_refs.insert(ref_name.to_string(), git_ref);
+            refs.insert(ref_name.to_string(), git_ref);
         }
 
         Ok(Self {
-            refs: git_refs,
+            refs,
             capbilities,
         })
     }
