@@ -1,27 +1,13 @@
 use anyhow::{Result, bail};
-use flate2::Compression;
-use flate2::bufread::ZlibDecoder;
-use flate2::write::ZlibEncoder;
 use std::fs;
 use std::fs::Metadata;
-use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
-    let mut decoder = ZlibDecoder::new(data);
-    let mut decompressed: Vec<u8> = Vec::new();
-    decoder.read_to_end(&mut decompressed)?;
-    Ok(decompressed)
-}
+mod compression;
 
-pub fn compress_zlib(data: &[u8]) -> Result<Vec<u8>> {
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(data)?;
-    let compressed = encoder.finish()?;
-    Ok(compressed)
-}
+pub use compression::{compress_zlib, decompress_zlib};
 
 fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut header: Vec<u8> = Vec::new();
