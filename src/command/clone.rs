@@ -2,7 +2,6 @@ use anyhow::{Context, Result, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
 
-use crate::constant::PKT_LINE_LEN_BYTES;
 use crate::util::pkt_line;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
@@ -23,8 +22,10 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let mut git_refs = HashMap::new();
     let mut compatibilities = Vec::new();
     for payload in payloads.iter().skip(1) {
-        let sha1_hex_in_bytes = &payload[..40];
-        let rest = &payload[41..];
+        const SHA1_HEX_LEN_BYTES: usize = 40;
+
+        let sha1_hex_in_bytes = &payload[..SHA1_HEX_LEN_BYTES];
+        let rest = &payload[SHA1_HEX_LEN_BYTES + 1..];
         let ref_sha1_hex = String::from_utf8_lossy(sha1_hex_in_bytes);
 
         let ref_name;
