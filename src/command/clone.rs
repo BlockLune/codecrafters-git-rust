@@ -15,51 +15,8 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     dbg!(&local_dir);
 
     let refs_data = get_refs_data(&canonicalized_repo_url).await?;
-    let payloads = pkt_line::decode(refs_data)?;
-
-    dbg!(&payloads);
-
-    let mut git_refs = HashMap::new();
-    let mut compatibilities = Vec::new();
-    for payload in payloads.iter().skip(1) {
-        const SHA1_HEX_LEN_BYTES: usize = 40;
-
-        let sha1_hex_in_bytes = &payload[..SHA1_HEX_LEN_BYTES];
-        let rest = &payload[SHA1_HEX_LEN_BYTES + 1..];
-        let ref_sha1_hex = String::from_utf8_lossy(sha1_hex_in_bytes);
-
-        let ref_name;
-        if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
-            let ref_name_in_bytes = &rest[..pos];
-            let compatibilities_in_bytes = &rest[pos + 1..];
-            ref_name = String::from_utf8_lossy(ref_name_in_bytes);
-            let compatibilities_string = String::from_utf8_lossy(compatibilities_in_bytes)
-                .trim()
-                .to_string();
-            compatibilities = compatibilities_string
-                .split_whitespace()
-                .map(String::from)
-                .collect();
-        } else {
-            ref_name = String::from_utf8_lossy(rest);
-        }
-        let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
-        git_refs.insert(ref_name.to_string(), git_ref);
-    }
-
-    dbg!(&compatibilities);
-    dbg!(&git_refs);
-
-    let symref_head = find_symref_head(compatibilities).context("`symref=HEAD:` not found")?;
-    let head_sha1 = git_refs
-        .get(&"HEAD".to_string())
-        .context("HEAD not found")?
-        .sha1();
-    let head_sha1_hex = hex::encode(head_sha1);
-
-    dbg!(&symref_head);
-    dbg!(&head_sha1_hex);
-
+    let ref_discovery = RefDiscovery::parse(refs_data)?;
+    let head_sha1_hex = hex::encode(ref_discovery.head_sha1()?);
     let want_payload = format!("want {}\n", head_sha1_hex);
     let want_pkt = pkt_line::encode(&want_payload);
     let done_pkt = pkt_line::encode("done\n");
@@ -126,11 +83,65 @@ impl GitRef {
     }
 }
 
-fn find_symref_head(compatibilites: Vec<String>) -> Option<String> {
+fn find_symref_head(compatibilites: &Vec<String>) -> Option<String> {
     for compatibility in compatibilites {
         if compatibility.starts_with("symref=HEAD:") {
             return Some(compatibility.trim_start_matches("symref=HEAD:").to_string());
         }
     }
     None
+}
+
+struct RefDiscovery {
+    refs: HashMap<String, GitRef>,
+    symref_head: String,
+    compatibilities: Vec<String>,
+}
+
+impl RefDiscovery {
+    pub fn parse(data: Bytes) -> Result<Self> {
+        let payloads = pkt_line::decode(data)?;
+        let mut git_refs = HashMap::new();
+        let mut compatibilities = Vec::new();
+        for payload in payloads.iter().skip(1) {
+            const SHA1_HEX_LEN_BYTES: usize = 40;
+
+            let sha1_hex_in_bytes = &payload[..SHA1_HEX_LEN_BYTES];
+            let rest = &payload[SHA1_HEX_LEN_BYTES + 1..];
+            let ref_sha1_hex = String::from_utf8_lossy(sha1_hex_in_bytes);
+
+            let ref_name;
+            if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
+                let ref_name_in_bytes = &rest[..pos];
+                let compatibilities_in_bytes = &rest[pos + 1..];
+                ref_name = String::from_utf8_lossy(ref_name_in_bytes);
+                let compatibilities_string = String::from_utf8_lossy(compatibilities_in_bytes)
+                    .trim()
+                    .to_string();
+                compatibilities = compatibilities_string
+                    .split_whitespace()
+                    .map(String::from)
+                    .collect();
+            } else {
+                ref_name = String::from_utf8_lossy(rest);
+            }
+            let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
+            git_refs.insert(ref_name.to_string(), git_ref);
+        }
+        let symref_head = find_symref_head(&compatibilities).context("`symref=HEAD:` not found")?;
+
+        Ok(Self {
+            refs: git_refs,
+            symref_head,
+            compatibilities,
+        })
+    }
+
+    pub fn head_sha1(&self) -> Result<Bytes> {
+        Ok(self
+            .refs
+            .get(&"HEAD".to_string())
+            .context("HEAD not found")?
+            .sha1())
+    }
 }
