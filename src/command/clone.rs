@@ -11,9 +11,10 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     dbg!(&local_dir);
 
-    let refs = get_refs(&canonicalized_repo_url).await?;
+    let refs_data = get_refs_data(&canonicalized_repo_url).await?;
+    let payloads = parse_payloads(refs_data)?;
 
-    dbg!(&refs);
+    dbg!(&payloads);
 
     Ok(())
 }
@@ -39,8 +40,25 @@ fn extract_local_dir_from_canonicalized_repo_url(url: &str) -> Result<String> {
     Ok(last_part)
 }
 
-async fn get_refs(repo_url: &str) -> Result<Bytes> {
+async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
     let url = format!("{}/info/refs?service=git-upload-pack", repo_url);
     let res = reqwest::get(&url).await?;
     Ok(res.bytes().await?)
+}
+
+fn parse_payloads(data: Bytes) -> Result<Vec<Bytes>> {
+    let mut payloads = Vec::new();
+    let mut i = 0;
+    while i < data.len() {
+        let length_hex_string = String::from_utf8_lossy(&data[i..i+4]);
+        let length = usize::from_str_radix(&length_hex_string, 16)?;
+        if length == 0 {
+            i += 4;
+            continue;
+        }
+        let payload = Bytes::copy_from_slice(&data[i+4..i+length]);
+        payloads.push(payload);
+        i += length;
+    }
+    Ok(payloads)
 }
