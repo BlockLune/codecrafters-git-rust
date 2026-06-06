@@ -4,3 +4,4 @@ pub(crate) mod init;
 pub(crate) mod ls_tree;
 pub(crate) mod write_tree;
 pub(crate) mod commit_tree;
+pub(crate) mod clone;

@@ -33,4 +33,8 @@ pub enum Commands {
         #[arg(short = 'm')]
         message: String,
     },
+    Clone {
+        repo_url: String,
+        local_dir: Option<String>,
+    },
 }

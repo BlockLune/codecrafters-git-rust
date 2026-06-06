@@ -30,6 +30,10 @@ fn main() -> Result<()> {
             parent_sha,
             message,
         } => command::commit_tree::run(&tree_sha, &parent_sha.unwrap_or_default(), &message),
+        Commands::Clone {
+            repo_url,
+            local_dir,
+        } => command::clone::run(&repo_url, &local_dir.unwrap_or_default()),
     }?;
 
     Ok(())
