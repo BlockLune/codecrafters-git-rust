@@ -83,10 +83,10 @@ impl GitRef {
     }
 }
 
-fn find_symref_head(compatibilites: &Vec<String>) -> Option<String> {
-    for compatibility in compatibilites {
-        if compatibility.starts_with("symref=HEAD:") {
-            return Some(compatibility.trim_start_matches("symref=HEAD:").to_string());
+fn find_symref_head(capbilities: &Vec<String>) -> Option<String> {
+    for capbility in capbilities {
+        if capbility.starts_with("symref=HEAD:") {
+            return Some(capbility.trim_start_matches("symref=HEAD:").to_string());
         }
     }
     None
@@ -95,14 +95,14 @@ fn find_symref_head(compatibilites: &Vec<String>) -> Option<String> {
 struct RefDiscovery {
     refs: HashMap<String, GitRef>,
     symref_head: String,
-    compatibilities: Vec<String>,
+    capbilities: Vec<String>,
 }
 
 impl RefDiscovery {
     pub fn parse(data: Bytes) -> Result<Self> {
         let payloads = pkt_line::decode(data)?;
         let mut git_refs = HashMap::new();
-        let mut compatibilities = Vec::new();
+        let mut capbilities = Vec::new();
         for payload in payloads.iter().skip(1) {
             const SHA1_HEX_LEN_BYTES: usize = 40;
 
@@ -113,12 +113,12 @@ impl RefDiscovery {
             let ref_name;
             if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
                 let ref_name_in_bytes = &rest[..pos];
-                let compatibilities_in_bytes = &rest[pos + 1..];
+                let capbilities_in_bytes = &rest[pos + 1..];
                 ref_name = String::from_utf8_lossy(ref_name_in_bytes);
-                let compatibilities_string = String::from_utf8_lossy(compatibilities_in_bytes)
+                let capbilities_string = String::from_utf8_lossy(capbilities_in_bytes)
                     .trim()
                     .to_string();
-                compatibilities = compatibilities_string
+                capbilities = capbilities_string
                     .split_whitespace()
                     .map(String::from)
                     .collect();
@@ -128,12 +128,12 @@ impl RefDiscovery {
             let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
             git_refs.insert(ref_name.to_string(), git_ref);
         }
-        let symref_head = find_symref_head(&compatibilities).context("`symref=HEAD:` not found")?;
+        let symref_head = find_symref_head(&capbilities).context("`symref=HEAD:` not found")?;
 
         Ok(Self {
             refs: git_refs,
             symref_head,
-            compatibilities,
+            capbilities,
         })
     }
 
