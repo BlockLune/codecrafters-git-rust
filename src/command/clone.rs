@@ -66,6 +66,7 @@ async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
 
 #[derive(Debug)]
 struct GitRef {
+    #[allow(unused)]
     name: String,
     sha1: Bytes,
 }
@@ -83,18 +84,9 @@ impl GitRef {
     }
 }
 
-fn find_symref_head(capbilities: &Vec<String>) -> Option<String> {
-    for capbility in capbilities {
-        if capbility.starts_with("symref=HEAD:") {
-            return Some(capbility.trim_start_matches("symref=HEAD:").to_string());
-        }
-    }
-    None
-}
-
 struct RefDiscovery {
     refs: HashMap<String, GitRef>,
-    symref_head: String,
+    #[allow(unused)]
     capbilities: Vec<String>,
 }
 
@@ -128,11 +120,9 @@ impl RefDiscovery {
             let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
             git_refs.insert(ref_name.to_string(), git_ref);
         }
-        let symref_head = find_symref_head(&capbilities).context("`symref=HEAD:` not found")?;
 
         Ok(Self {
             refs: git_refs,
-            symref_head,
             capbilities,
         })
     }
@@ -143,5 +133,14 @@ impl RefDiscovery {
             .get(&"HEAD".to_string())
             .context("HEAD not found")?
             .sha1())
+    }
+
+    pub fn symref_head(&self) -> Option<String> {
+        for capbility in &self.capbilities {
+            if capbility.starts_with("symref=HEAD:") {
+                return Some(capbility.trim_start_matches("symref=HEAD:").to_string());
+            }
+        }
+        None
     }
 }
