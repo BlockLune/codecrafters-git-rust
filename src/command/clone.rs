@@ -16,6 +16,35 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     dbg!(&payloads);
 
+    let mut git_refs = Vec::new();
+    let mut compatibilities = Vec::new();
+    for payload in payloads.iter().skip(1) {
+        let sha1_hex_in_bytes = &payload[..40];
+        let rest = &payload[41..];
+        let ref_sha1_hex = String::from_utf8_lossy(sha1_hex_in_bytes);
+
+        let ref_name;
+        if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
+            let ref_name_in_bytes = &rest[..pos];
+            let compatibilities_in_bytes = &rest[pos + 1..];
+            ref_name = String::from_utf8_lossy(ref_name_in_bytes);
+            let compatibilities_string = String::from_utf8_lossy(compatibilities_in_bytes)
+                .trim()
+                .to_string();
+            compatibilities = compatibilities_string
+                .split_whitespace()
+                .map(String::from)
+                .collect();
+        } else {
+            ref_name = String::from_utf8_lossy(rest);
+        }
+        let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
+        git_refs.push(git_ref);
+    }
+
+    dbg!(&compatibilities);
+    dbg!(&git_refs);
+
     Ok(())
 }
 
@@ -50,15 +79,30 @@ fn parse_payloads(data: Bytes) -> Result<Vec<Bytes>> {
     let mut payloads = Vec::new();
     let mut i = 0;
     while i < data.len() {
-        let length_hex_string = String::from_utf8_lossy(&data[i..i+4]);
+        let length_hex_string = String::from_utf8_lossy(&data[i..i + 4]);
         let length = usize::from_str_radix(&length_hex_string, 16)?;
         if length == 0 {
             i += 4;
             continue;
         }
-        let payload = Bytes::copy_from_slice(&data[i+4..i+length]);
+        let payload = Bytes::copy_from_slice(&data[i + 4..i + length]);
         payloads.push(payload);
         i += length;
     }
     Ok(payloads)
+}
+
+#[derive(Debug)]
+struct GitRef {
+    name: String,
+    sha1: Bytes,
+}
+
+impl GitRef {
+    pub fn try_new(name: &str, sha1_hex: &str) -> Result<Self> {
+        Ok(Self {
+            name: name.to_string(),
+            sha1: Bytes::from(hex::decode(sha1_hex)?),
+        })
+    }
 }
