@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
+use crate::object::GitObject;
 use crate::object::blob::BlobObject;
 use crate::object::tree::{TreeEntry, TreeObject};
 use crate::utils::git_mode;

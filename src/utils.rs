@@ -2,7 +2,6 @@ use anyhow::{Result, bail};
 use flate2::Compression;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use sha1::{Digest, Sha1};
 use std::fs;
 use std::fs::Metadata;
 use std::io::{Read, Write};
@@ -17,15 +16,11 @@ fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
     Ok(decompressed)
 }
 
-fn compress_zlib(data: &[u8]) -> Result<Vec<u8>> {
+pub fn compress_zlib(data: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(data)?;
     let compressed = encoder.finish()?;
     Ok(compressed)
-}
-
-pub fn compute_sha1(data: &[u8]) -> Vec<u8> {
-    Vec::from(&Sha1::digest(data)[..])
 }
 
 fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
@@ -55,17 +50,6 @@ pub fn get_decompressed_header_content_from_sha(obj_sha: &str) -> Result<(Vec<u8
     let data = fs::read(path)?;
     let decompressed = decompress_zlib(&data)?;
     split_header_content(&decompressed)
-}
-
-pub fn write_obj_to_disk(obj_sha: &[u8], decompressed: &[u8]) -> Result<()> {
-    let obj_sha_hex = hex::encode(obj_sha);
-    let (dir, filename) = obj_sha_hex.split_at(2);
-    let dir_path = PathBuf::from(".git/objects/").join(dir);
-    fs::create_dir_all(&dir_path)?;
-    let path = dir_path.join(filename);
-    fs::write(path, compress_zlib(decompressed)?)?;
-
-    Ok(())
 }
 
 #[cfg(unix)]

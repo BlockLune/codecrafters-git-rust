@@ -1,6 +1,4 @@
-use anyhow::Result;
-
-use crate::utils::{compute_sha1, write_obj_to_disk};
+use crate::object::GitObject;
 
 pub struct BlobObject(Vec<u8>);
 
@@ -10,12 +8,10 @@ impl BlobObject {
         data.extend_from_slice(&file_content);
         Self(data)
     }
+}
 
-    pub fn sha1(&self) -> Vec<u8> {
-        compute_sha1(&self.0)
-    }
-
-    pub fn write_to_disk(&self) -> Result<()> {
-        write_obj_to_disk(&self.sha1(), &self.0)
+impl GitObject for BlobObject {
+    fn data(&self) -> &[u8] {
+        &self.0
     }
 }

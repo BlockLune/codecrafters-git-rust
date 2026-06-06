@@ -1,6 +1,4 @@
-use anyhow::Result;
-
-use crate::utils::{compute_sha1, write_obj_to_disk};
+use crate::object::GitObject;
 
 pub struct TreeEntry {
     #[allow(unused)]
@@ -37,12 +35,10 @@ impl TreeObject {
 
         Self(data)
     }
+}
 
-    pub fn sha1(&self) -> Vec<u8> {
-        compute_sha1(&self.0)
-    }
-
-    pub fn write_to_disk(&self) -> Result<()> {
-        write_obj_to_disk(&self.sha1(), &self.0)
+impl GitObject for TreeObject {
+    fn data(&self) -> &[u8] {
+        &self.0
     }
 }

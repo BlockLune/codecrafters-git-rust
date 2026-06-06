@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use crate::object::GitObject;
 use crate::object::commit::CommitObject;
 
 pub fn run(tree_sha: &str, parent_sha: &str, message: &str) -> Result<()> {

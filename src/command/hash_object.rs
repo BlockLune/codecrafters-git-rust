@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::fs;
 use std::path::Path;
 
+use crate::object::GitObject;
 use crate::object::blob::BlobObject;
 
 pub fn run(file_path: &Path, write_flag: bool) -> Result<()> {
