@@ -5,6 +5,7 @@ mod cli;
 mod command;
 mod object;
 mod util;
+mod constant;
 
 use crate::cli::{Cli, Commands};
 

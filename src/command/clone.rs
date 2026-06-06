@@ -2,7 +2,8 @@ use anyhow::{Context, Result, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
 
-const PKT_LINE_LEN_BYTES: usize = 4;
+use crate::constant::PKT_LINE_LEN_BYTES;
+use crate::util::pkt_line;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let canonicalized_repo_url = canonicalize_repo_url(repo_url);
@@ -15,7 +16,7 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     dbg!(&local_dir);
 
     let refs_data = get_refs_data(&canonicalized_repo_url).await?;
-    let payloads = parse_payloads(refs_data)?;
+    let payloads = pkt_line::decode(refs_data)?;
 
     dbg!(&payloads);
 
@@ -59,8 +60,8 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     dbg!(&head_sha1_hex);
 
     let want_payload = format!("want {}\n", head_sha1_hex);
-    let want_pkt = pkt_line(&want_payload);
-    let done_pkt = pkt_line("done\n");
+    let want_pkt = pkt_line::encode(&want_payload);
+    let done_pkt = pkt_line::encode("done\n");
     let body = Bytes::from(format!("{}0000{}", want_pkt, done_pkt));
 
     dbg!(&body);
@@ -105,23 +106,6 @@ async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
     Ok(res.bytes().await?)
 }
 
-fn parse_payloads(data: Bytes) -> Result<Vec<Bytes>> {
-    let mut payloads = Vec::new();
-    let mut i = 0;
-    while i < data.len() {
-        let length_hex_string = String::from_utf8_lossy(&data[i..i + PKT_LINE_LEN_BYTES]);
-        let length = usize::from_str_radix(&length_hex_string, 16)?;
-        if length == 0 {
-            i += 4;
-            continue;
-        }
-        let payload = Bytes::copy_from_slice(&data[i + PKT_LINE_LEN_BYTES..i + length]);
-        payloads.push(payload);
-        i += length;
-    }
-    Ok(payloads)
-}
-
 #[derive(Debug)]
 struct GitRef {
     name: String,
@@ -148,9 +132,4 @@ fn find_symref_head(compatibilites: Vec<String>) -> Option<String> {
         }
     }
     None
-}
-
-fn pkt_line(payload: &str) -> String {
-    let len = payload.as_bytes().len() + PKT_LINE_LEN_BYTES;
-    format!("{:04x}{}", len, payload)
 }
