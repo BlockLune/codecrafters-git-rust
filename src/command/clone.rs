@@ -68,19 +68,19 @@ async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
 struct GitRef {
     #[allow(unused)]
     name: String,
-    sha1: Bytes,
+    sha1: Vec<u8>,
 }
 
 impl GitRef {
     pub fn try_new(name: &str, sha1_hex: &str) -> Result<Self> {
         Ok(Self {
             name: name.to_string(),
-            sha1: Bytes::from(hex::decode(sha1_hex)?),
+            sha1: hex::decode(sha1_hex)?,
         })
     }
 
-    pub fn sha1(&self) -> Bytes {
-        self.sha1.clone()
+    pub fn sha1(&self) -> &Vec<u8> {
+        &self.sha1
     }
 }
 
@@ -92,7 +92,7 @@ struct RefDiscovery {
 
 impl RefDiscovery {
     pub fn parse(data: Bytes) -> Result<Self> {
-        let payloads = pkt_line::decode(data)?;
+        let payloads = pkt_line::decode(&data)?;
 
         let mut refs = HashMap::new();
         let mut capbilities = Vec::new();
@@ -129,7 +129,7 @@ impl RefDiscovery {
         })
     }
 
-    pub fn head_sha1(&self) -> Result<Bytes> {
+    pub fn head_sha1(&self) -> Result<&Vec<u8>> {
         Ok(self
             .refs
             .get(&"HEAD".to_string())

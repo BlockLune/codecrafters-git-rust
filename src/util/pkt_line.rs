@@ -1,5 +1,4 @@
 use anyhow::Result;
-use bytes::Bytes;
 
 const PKT_LINE_LEN_BYTES: usize = 4;
 
@@ -8,7 +7,7 @@ pub fn encode(payload: &str) -> String {
     format!("{:04x}{}", len, payload)
 }
 
-pub fn decode(data: Bytes) -> Result<Vec<Bytes>> {
+pub fn decode(data: &[u8]) -> Result<Vec<&[u8]>> {
     let mut payloads = Vec::new();
     let mut i = 0;
     while i < data.len() {
@@ -18,7 +17,7 @@ pub fn decode(data: Bytes) -> Result<Vec<Bytes>> {
             i += 4;
             continue;
         }
-        let payload = Bytes::copy_from_slice(&data[i + PKT_LINE_LEN_BYTES..i + length]);
+        let payload = &data[i + PKT_LINE_LEN_BYTES..i + length];
         payloads.push(payload);
         i += length;
     }
