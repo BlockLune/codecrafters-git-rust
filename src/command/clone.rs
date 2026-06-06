@@ -1,5 +1,6 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use bytes::Bytes;
+use std::collections::HashMap;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let canonicalized_repo_url = canonicalize_repo_url(repo_url);
@@ -16,7 +17,7 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     dbg!(&payloads);
 
-    let mut git_refs = Vec::new();
+    let mut git_refs = HashMap::new();
     let mut compatibilities = Vec::new();
     for payload in payloads.iter().skip(1) {
         let sha1_hex_in_bytes = &payload[..40];
@@ -39,11 +40,17 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
             ref_name = String::from_utf8_lossy(rest);
         }
         let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
-        git_refs.push(git_ref);
+        git_refs.insert(ref_name.to_string(), git_ref);
     }
 
     dbg!(&compatibilities);
     dbg!(&git_refs);
+
+    let symref_head = find_symref_head(compatibilities).context("`symref=HEAD:` not found")?;
+    let head_sha1 = git_refs.get(&"HEAD".to_string()).context("HEAD not found")?.sha1();
+
+    dbg!(&symref_head);
+    dbg!(hex::encode(head_sha1));
 
     Ok(())
 }
@@ -105,4 +112,17 @@ impl GitRef {
             sha1: Bytes::from(hex::decode(sha1_hex)?),
         })
     }
+
+    pub fn sha1(&self) -> Bytes {
+        self.sha1.clone()
+    }
+}
+
+fn find_symref_head(compatibilites: Vec<String>) -> Option<String> {
+    for compatibility in compatibilites {
+        if compatibility.starts_with("symref=HEAD:") {
+            return Some(compatibility.trim_start_matches("symref=HEAD:").to_string());
+        }
+    }
+    None
 }
