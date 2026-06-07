@@ -87,7 +87,7 @@ impl GitRef {
 struct RefDiscovery {
     refs: HashMap<String, GitRef>,
     #[allow(unused)]
-    capbilities: Vec<String>,
+    capabilities: Vec<String>,
 }
 
 impl RefDiscovery {
@@ -95,7 +95,7 @@ impl RefDiscovery {
         let payloads = pkt_line::decode(&data)?;
 
         let mut refs = HashMap::new();
-        let mut capbilities = Vec::new();
+        let mut capabilities = Vec::new();
 
         for payload in payloads.iter().skip(1) {
             const SHA1_HEX_LEN_BYTES: usize = 40;
@@ -107,26 +107,21 @@ impl RefDiscovery {
             let ref_name;
             if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
                 let ref_name_in_bytes = &rest[..pos];
-                let capbilities_in_bytes = &rest[pos + 1..];
-                ref_name = String::from_utf8_lossy(ref_name_in_bytes);
-                let capbilities_string = String::from_utf8_lossy(capbilities_in_bytes)
-                    .trim()
-                    .to_string();
-                capbilities = capbilities_string
+                let capabilities_in_bytes = &rest[pos + 1..];
+                ref_name = std::str::from_utf8(ref_name_in_bytes)?;
+                let capabilities_string = std::str::from_utf8(capabilities_in_bytes)?.trim();
+                capabilities = capabilities_string
                     .split_whitespace()
                     .map(String::from)
                     .collect();
             } else {
-                ref_name = String::from_utf8_lossy(rest);
+                ref_name = std::str::from_utf8(rest)?;
             }
-            let git_ref = GitRef::try_new(&ref_name, &ref_sha1_hex)?;
+            let git_ref = GitRef::try_new(ref_name, &ref_sha1_hex)?;
             refs.insert(ref_name.to_string(), git_ref);
         }
 
-        Ok(Self {
-            refs,
-            capbilities,
-        })
+        Ok(Self { refs, capabilities })
     }
 
     pub fn head_sha1(&self) -> Result<&Vec<u8>> {
@@ -138,9 +133,9 @@ impl RefDiscovery {
     }
 
     pub fn symref_head(&self) -> Option<String> {
-        for capbility in &self.capbilities {
-            if capbility.starts_with("symref=HEAD:") {
-                return Some(capbility.trim_start_matches("symref=HEAD:").to_string());
+        for capability in &self.capabilities {
+            if capability.starts_with("symref=HEAD:") {
+                return Some(capability.trim_start_matches("symref=HEAD:").to_string());
             }
         }
         None
