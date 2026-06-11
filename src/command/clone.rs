@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use crate::util::pkt_line;
 
@@ -209,7 +210,51 @@ impl PackFile {
             data[IDENTIFIER_LEN + VERSION_LEN..IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN]
                 .try_into()?,
         );
+        let rest = &data[IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN];
 
         Ok(Self { version, n_objects })
+    }
+}
+
+enum ObjectType {
+    Commit = 1,
+    Tree = 2,
+    Blob = 3,
+    Tag = 4,
+    OfsDelta = 6,
+    RefDelta = 7,
+}
+
+impl TryFrom<u8> for ObjectType {
+    type Error = String;
+
+    fn try_from(value: u8) -> std::prelude::v1::Result<Self, Self::Error> {
+        match value {
+            1 => Ok(ObjectType::Commit),
+            2 => Ok(ObjectType::Tree),
+            3 => Ok(ObjectType::Blob),
+            4 => Ok(ObjectType::Tag),
+            6 => Ok(ObjectType::OfsDelta),
+            7 => Ok(ObjectType::RefDelta),
+            _ => Err(format!("invalid: {}", value)),
+        }
+    }
+}
+
+struct ObjectHeader {
+    pub obj_type: ObjectType,
+    pub obj_size: usize,
+    pub header_len: usize,
+}
+
+impl ObjectHeader {
+    pub fn parse(data: &[u8]) -> Result<Self> {
+        let first_byte = data[0];
+        let obj_type = ObjectType::try_from((first_byte >> 4) & 0b111)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        let mut obj_size: usize = (first_byte & 0b1111) as usize;
+
+        todo!("MSB is not yet implemented")
     }
 }
