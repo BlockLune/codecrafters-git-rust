@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use bytes::Bytes;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -244,17 +244,25 @@ impl TryFrom<u8> for ObjectType {
 struct ObjectHeader {
     pub obj_type: ObjectType,
     pub obj_size: usize,
-    pub header_len: usize,
 }
 
 impl ObjectHeader {
     pub fn parse(data: &[u8]) -> Result<Self> {
         let first_byte = data[0];
-        let obj_type = ObjectType::try_from((first_byte >> 4) & 0b111)
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let obj_type =
+            ObjectType::try_from((first_byte >> 4) & 0b111).map_err(|e| anyhow!("{}", e))?;
 
-        let mut obj_size: usize = (first_byte & 0b1111) as usize;
+        // MSB
+        let mut obj_size = (first_byte & 0b1111) as usize;
+        let mut idx = 1;
+        let mut shift = 4;
+        while idx < data.len() && (data[idx - 1] & 0b10000000) != 0 {
+            let byte = data[idx];
+            obj_size |= ((byte & 0b01111111) as usize) << shift;
+            shift += 7;
+            idx += 1;
+        }
 
-        todo!("MSB is not yet implemented")
+        Ok(Self { obj_type, obj_size })
     }
 }
