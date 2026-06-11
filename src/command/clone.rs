@@ -104,7 +104,7 @@ impl GitApiClient {
         assert_eq!(&data[..EXPECTED_NAK_LINE_LEN], EXPECTED_NAK_LINE);
 
         let pack_file_data = &data[EXPECTED_NAK_LINE_LEN..];
-        let pack_file = PackFile::new(pack_file_data);
+        let pack_file = PackFile::try_new(pack_file_data)?;
 
         Ok(pack_file)
     }
@@ -190,13 +190,12 @@ impl RefDiscovery {
 }
 
 struct PackFile {
-    pub version: Vec<u8>,
-    pub n_objects: Vec<u8>,
-    pub rest: Vec<u8>,
+    pub version: u32,
+    pub n_objects: u32,
 }
 
 impl PackFile {
-    pub fn new(data: &[u8]) -> Self {
+    pub fn try_new(data: &[u8]) -> Result<Self> {
         const IDENTIFIER: &[u8] = b"PACK";
         const IDENTIFIER_LEN: usize = IDENTIFIER.len();
         assert_eq!(&data[..IDENTIFIER_LEN], IDENTIFIER);
@@ -204,17 +203,13 @@ impl PackFile {
         const VERSION_LEN: usize = 4;
         const N_OBJECTS_LEN: usize = 4;
 
-        const VERSION_START_POS: usize = IDENTIFIER_LEN;
-        const N_OBJECTS_START_POS: usize = IDENTIFIER_LEN + VERSION_LEN;
+        let version =
+            u32::from_be_bytes(data[IDENTIFIER_LEN..IDENTIFIER_LEN + VERSION_LEN].try_into()?);
+        let n_objects = u32::from_be_bytes(
+            data[IDENTIFIER_LEN + VERSION_LEN..IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN]
+                .try_into()?,
+        );
 
-        let version = &data[VERSION_START_POS..VERSION_START_POS + VERSION_LEN];
-        let n_objects = &data[N_OBJECTS_START_POS..N_OBJECTS_START_POS + N_OBJECTS_LEN];
-        let rest = &data[N_OBJECTS_START_POS + N_OBJECTS_LEN..];
-
-        Self {
-            version: Vec::from(version),
-            n_objects: Vec::from(n_objects),
-            rest: Vec::from(rest),
-        }
+        Ok(Self { version, n_objects })
     }
 }
