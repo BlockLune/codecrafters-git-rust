@@ -14,9 +14,10 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let discovery = client.discover_refs().await?;
 
     let head_sha1 = discovery.head_sha1()?;
-    let pack = client.fetch_pack(head_sha1).await?;
+    let pack_file = client.fetch_pack_file(head_sha1).await?;
 
-    dbg!(&pack);
+    dbg!(pack_file.version);
+    dbg!(pack_file.n_objects);
 
     Ok(())
 }
@@ -80,7 +81,7 @@ impl GitApiClient {
         Ok(discovery)
     }
 
-    pub async fn fetch_pack(&self, head_sha1: &[u8]) -> Result<Bytes> {
+    pub async fn fetch_pack_file(&self, head_sha1: &[u8]) -> Result<PackFile> {
         let want_payload = format!("want {}\n", hex::encode(head_sha1));
 
         let want_pkt = pkt_line::encode(&want_payload);
@@ -96,7 +97,16 @@ impl GitApiClient {
             .await?
             .error_for_status()?;
 
-        Ok(res.bytes().await?)
+        let data = res.bytes().await?;
+
+        const EXPECTED_NAK_LINE: &[u8] = b"0008NAK\n";
+        const EXPECTED_NAK_LINE_LEN: usize = EXPECTED_NAK_LINE.len();
+        assert_eq!(&data[..EXPECTED_NAK_LINE_LEN], EXPECTED_NAK_LINE);
+
+        let pack_file_data = &data[EXPECTED_NAK_LINE_LEN..];
+        let pack_file = PackFile::new(pack_file_data);
+
+        Ok(pack_file)
     }
 }
 
@@ -176,5 +186,35 @@ impl RefDiscovery {
             }
         }
         None
+    }
+}
+
+struct PackFile {
+    pub version: Vec<u8>,
+    pub n_objects: Vec<u8>,
+    pub rest: Vec<u8>,
+}
+
+impl PackFile {
+    pub fn new(data: &[u8]) -> Self {
+        const IDENTIFIER: &[u8] = b"PACK";
+        const IDENTIFIER_LEN: usize = IDENTIFIER.len();
+        assert_eq!(&data[..IDENTIFIER_LEN], IDENTIFIER);
+
+        const VERSION_LEN: usize = 4;
+        const N_OBJECTS_LEN: usize = 4;
+
+        const VERSION_START_POS: usize = IDENTIFIER_LEN;
+        const N_OBJECTS_START_POS: usize = IDENTIFIER_LEN + VERSION_LEN;
+
+        let version = &data[VERSION_START_POS..VERSION_START_POS + VERSION_LEN];
+        let n_objects = &data[N_OBJECTS_START_POS..N_OBJECTS_START_POS + N_OBJECTS_LEN];
+        let rest = &data[N_OBJECTS_START_POS + N_OBJECTS_LEN..];
+
+        Self {
+            version: Vec::from(version),
+            n_objects: Vec::from(n_objects),
+            rest: Vec::from(rest),
+        }
     }
 }
