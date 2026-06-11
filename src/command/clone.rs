@@ -71,7 +71,11 @@ impl GitApiClient {
     }
 
     pub async fn discover_refs(&self) -> Result<RefDiscovery> {
-        let res = self.get("info/refs?service=git-upload-pack").send().await?;
+        let res = self
+            .get("info/refs?service=git-upload-pack")
+            .send()
+            .await?
+            .error_for_status()?;
         let discovery = RefDiscovery::parse(res.bytes().await?)?;
         Ok(discovery)
     }
@@ -89,7 +93,8 @@ impl GitApiClient {
             .header("Content-Type", "application/x-git-upload-pack-request")
             .body(body)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         Ok(res.bytes().await?)
     }
