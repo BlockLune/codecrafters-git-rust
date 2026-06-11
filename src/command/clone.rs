@@ -3,6 +3,7 @@ use bytes::Bytes;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
+use crate::util::compression::decompress_zlib;
 use crate::util::pkt_line;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
@@ -193,6 +194,7 @@ impl RefDiscovery {
 struct PackFile {
     pub version: u32,
     pub n_objects: u32,
+    pub objects: Vec<PackFileObject>,
 }
 
 impl PackFile {
@@ -210,12 +212,29 @@ impl PackFile {
             data[IDENTIFIER_LEN + VERSION_LEN..IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN]
                 .try_into()?,
         );
-        let rest = &data[IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN];
 
-        Ok(Self { version, n_objects })
+        const HEADER_LEN: usize = IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN;
+        let mut offset = HEADER_LEN;
+        let mut objects = Vec::with_capacity(n_objects as usize);
+
+        for _ in 0..n_objects {
+            let (consumed, obj) = PackFileObject::parse_next(&data[offset..])?;
+            offset += consumed;
+            objects.push(obj);
+        }
+        dbg!(&offset);
+
+        // TODO: verify checksum at data[offset..offset+20]
+
+        Ok(Self {
+            version,
+            n_objects,
+            objects,
+        })
     }
 }
 
+#[derive(Debug)]
 enum ObjectType {
     Commit = 1,
     Tree = 2,
@@ -241,13 +260,15 @@ impl TryFrom<u8> for ObjectType {
     }
 }
 
-struct ObjectHeader {
+#[derive(Debug)]
+struct PackFileObject {
     pub obj_type: ObjectType,
     pub obj_size: usize,
+    pub content: Vec<u8>,
 }
 
-impl ObjectHeader {
-    pub fn parse(data: &[u8]) -> Result<Self> {
+impl PackFileObject {
+    pub fn parse_next(data: &[u8]) -> Result<(usize, Self)> {
         let first_byte = data[0];
         let obj_type =
             ObjectType::try_from((first_byte >> 4) & 0b111).map_err(|e| anyhow!("{}", e))?;
@@ -257,12 +278,27 @@ impl ObjectHeader {
         let mut idx = 1;
         let mut shift = 4;
         while idx < data.len() && (data[idx - 1] & 0b10000000) != 0 {
-            let byte = data[idx];
-            obj_size |= ((byte & 0b01111111) as usize) << shift;
+            obj_size |= ((data[idx] & 0b01111111) as usize) << shift;
             shift += 7;
             idx += 1;
         }
+        let header_len = idx;
 
-        Ok(Self { obj_type, obj_size })
+        match obj_type {
+            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
+                let (decompressed, compressed_len) = decompress_zlib(&data[header_len..])?;
+                Ok((
+                    header_len + compressed_len,
+                    Self {
+                        obj_type,
+                        obj_size,
+                        content: decompressed,
+                    },
+                ))
+            }
+            ObjectType::OfsDelta | ObjectType::RefDelta => {
+                todo!("delta objects not yet implemented")
+            }
+        }
     }
 }

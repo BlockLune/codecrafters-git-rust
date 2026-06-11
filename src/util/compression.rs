@@ -4,11 +4,12 @@ use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use std::io::{Read, Write};
 
-pub fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
+pub fn decompress_zlib(data: &[u8]) -> Result<(Vec<u8>, usize)> {
     let mut decoder = ZlibDecoder::new(data);
     let mut decompressed: Vec<u8> = Vec::new();
     decoder.read_to_end(&mut decompressed)?;
-    Ok(decompressed)
+    let consumed = decoder.total_in() as usize;
+    Ok((decompressed, consumed))
 }
 
 pub fn compress_zlib(data: &[u8]) -> Result<Vec<u8>> {

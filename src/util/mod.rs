@@ -33,7 +33,7 @@ pub fn get_decompressed_header_content_from_sha(obj_sha: &str) -> Result<(Vec<u8
     let (dir, filename) = obj_sha.split_at(2);
     let path = PathBuf::from(".git/objects/").join(dir).join(filename);
     let data = fs::read(path)?;
-    let decompressed = compression::decompress_zlib(&data)?;
+    let (decompressed, _) = compression::decompress_zlib(&data)?;
     split_header_content(&decompressed)
 }
 
