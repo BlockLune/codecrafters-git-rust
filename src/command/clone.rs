@@ -10,25 +10,13 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     dbg!(&local_dir);
 
-    let refs_data = get_refs_data(&repo_url).await?;
-    let ref_discovery = RefDiscovery::parse(refs_data)?;
-    let head_sha1_hex = hex::encode(ref_discovery.head_sha1()?);
-    let want_payload = format!("want {}\n", head_sha1_hex);
-    let want_pkt = pkt_line::encode(&want_payload);
-    let done_pkt = pkt_line::encode("done\n");
-    let body = Bytes::from(format!("{}0000{}", want_pkt, done_pkt));
+    let client = GitApiClient::new(&repo_url);
+    let discovery = client.discover_refs().await?;
 
-    dbg!(&body);
+    let head_sha1 = discovery.head_sha1()?;
+    let pack = client.fetch_pack(head_sha1).await?;
 
-    let client = reqwest::Client::new();
-    let res = client
-        .post(format!("{}/git-upload-pack", repo_url))
-        .header("Content-Type", "application/x-git-upload-pack-request")
-        .body(body)
-        .send()
-        .await?;
-
-    dbg!(&res);
+    dbg!(&pack);
 
     Ok(())
 }
@@ -58,10 +46,53 @@ fn resolve_local_dir(repo_url: &str, local_dir: &str) -> Result<String> {
         .to_string())
 }
 
-async fn get_refs_data(repo_url: &str) -> Result<Bytes> {
-    let url = format!("{}/info/refs?service=git-upload-pack", repo_url);
-    let res = reqwest::get(&url).await?;
-    Ok(res.bytes().await?)
+#[derive(Debug)]
+struct GitApiClient {
+    client: reqwest::Client,
+    repo_url: String,
+}
+
+impl GitApiClient {
+    pub fn new(repo_url: &str) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            repo_url: repo_url.to_string(),
+        }
+    }
+
+    fn get(&self, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}/{}", self.repo_url, path);
+        self.client.get(&url)
+    }
+
+    fn post(&self, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}/{}", self.repo_url, path);
+        self.client.post(&url)
+    }
+
+    pub async fn discover_refs(&self) -> Result<RefDiscovery> {
+        let res = self.get("info/refs?service=git-upload-pack").send().await?;
+        let discovery = RefDiscovery::parse(res.bytes().await?)?;
+        Ok(discovery)
+    }
+
+    pub async fn fetch_pack(&self, head_sha1: &[u8]) -> Result<Bytes> {
+        let want_payload = format!("want {}\n", hex::encode(head_sha1));
+
+        let want_pkt = pkt_line::encode(&want_payload);
+        let done_pkt = pkt_line::encode("done\n");
+
+        let body = Bytes::from(format!("{}0000{}", want_pkt, done_pkt));
+
+        let res = self
+            .post("git-upload-pack")
+            .header("Content-Type", "application/x-git-upload-pack-request")
+            .body(body)
+            .send()
+            .await?;
+
+        Ok(res.bytes().await?)
+    }
 }
 
 #[derive(Debug)]
@@ -132,6 +163,7 @@ impl RefDiscovery {
             .sha1())
     }
 
+    #[allow(unused)]
     pub fn symref_head(&self) -> Option<String> {
         for capability in &self.capabilities {
             if capability.starts_with("symref=HEAD:") {
