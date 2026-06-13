@@ -19,7 +19,7 @@ impl GitRef {
         })
     }
 
-    pub fn sha1(&self) -> &Vec<u8> {
+    pub fn sha1(&self) -> &[u8] {
         &self.sha1
     }
 }
@@ -64,7 +64,7 @@ impl RefDiscovery {
         Ok(Self { refs, capabilities })
     }
 
-    pub fn head_sha1(&self) -> Result<&Vec<u8>> {
+    pub fn head_sha1(&self) -> Result<&[u8]> {
         Ok(self
             .refs
             .get(&"HEAD".to_string())
