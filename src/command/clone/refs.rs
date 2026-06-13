@@ -42,7 +42,7 @@ impl RefDiscovery {
 
             let sha1_hex_in_bytes = &payload[..SHA1_HEX_LEN_BYTES];
             let rest = &payload[SHA1_HEX_LEN_BYTES + 1..];
-            let ref_sha1_hex = String::from_utf8_lossy(sha1_hex_in_bytes);
+            let ref_sha1_hex = std::str::from_utf8(sha1_hex_in_bytes)?;
 
             let ref_name;
             if let Some((pos, _)) = rest.iter().enumerate().find(|&(_, byte)| *byte == b'\0') {
