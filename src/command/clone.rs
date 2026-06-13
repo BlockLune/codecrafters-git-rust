@@ -296,9 +296,31 @@ impl PackFileObject {
                     },
                 ))
             }
-            ObjectType::OfsDelta | ObjectType::RefDelta => {
-                todo!("delta objects not yet implemented")
+            ObjectType::OfsDelta => {
+                let (offset, compressed_delta_data) = parse_ofs_delta(&data[header_len..]);
+                let delta_data = decompress_zlib(compressed_delta_data)?;
+                todo!();
+            }
+            ObjectType::RefDelta => {
+                let (base_sha1, compressed_delta_data) = parse_ref_delta(&data[header_len..]);
+                let delta_data = decompress_zlib(compressed_delta_data)?;
+                todo!();
             }
         }
     }
+}
+
+fn parse_ofs_delta(data: &[u8]) -> (usize, &[u8]) {
+    let mut offset: usize = (data[0] & 0b01111111) as usize;
+    let mut i: usize = 1;
+    while i < data.len() && (data[i - 1] & 0b10000000) != 0 {
+        offset = (offset + 1) << 7 | (data[i] & 0b01111111) as usize;
+        i += 1;
+    }
+    (offset, &data[i..])
+}
+
+fn parse_ref_delta(data: &[u8]) -> ([u8; 20], &[u8]) {
+    let base_sha1: [u8; 20] = data[..20].try_into().unwrap();
+    (base_sha1, &data[20..])
 }
