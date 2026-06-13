@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use bytes::Bytes;
 
 use crate::util::pkt_line;
@@ -60,7 +60,10 @@ impl GitApiClient {
 
         const EXPECTED_NAK_LINE: &[u8] = b"0008NAK\n";
         const EXPECTED_NAK_LINE_LEN: usize = EXPECTED_NAK_LINE.len();
-        assert_eq!(&data[..EXPECTED_NAK_LINE_LEN], EXPECTED_NAK_LINE);
+        ensure!(
+            &data[..EXPECTED_NAK_LINE_LEN] == EXPECTED_NAK_LINE,
+            "unexpected response: expected NAK"
+        );
 
         let pack_file_data = &data[EXPECTED_NAK_LINE_LEN..];
         let pack_file = PackFile::try_new(pack_file_data)?;

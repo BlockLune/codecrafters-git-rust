@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use std::convert::TryFrom;
 
 use crate::util::compression::decompress_zlib;
@@ -13,7 +13,10 @@ impl PackFile {
     pub fn try_new(data: &[u8]) -> Result<Self> {
         const IDENTIFIER: &[u8] = b"PACK";
         const IDENTIFIER_LEN: usize = IDENTIFIER.len();
-        assert_eq!(&data[..IDENTIFIER_LEN], IDENTIFIER);
+        ensure!(
+            &data[..IDENTIFIER_LEN] == IDENTIFIER,
+            "invalid pack file: missing PACK signature"
+        );
 
         const VERSION_LEN: usize = 4;
         const N_OBJECTS_LEN: usize = 4;
@@ -113,7 +116,7 @@ impl PackFileObject {
                 todo!();
             }
             ObjectType::RefDelta => {
-                let (base_sha1, compressed_delta_data) = parse_ref_delta(&data[header_len..]);
+                let (base_sha1, compressed_delta_data) = parse_ref_delta(&data[header_len..])?;
                 let delta_data = decompress_zlib(compressed_delta_data)?;
                 todo!();
             }
@@ -131,7 +134,7 @@ fn parse_ofs_delta(data: &[u8]) -> (usize, &[u8]) {
     (offset, &data[i..])
 }
 
-fn parse_ref_delta(data: &[u8]) -> ([u8; 20], &[u8]) {
-    let base_sha1: [u8; 20] = data[..20].try_into().unwrap();
-    (base_sha1, &data[20..])
+fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], &[u8])> {
+    let base_sha1: [u8; 20] = data[..20].try_into().context("truncated ref-delta")?;
+    Ok((base_sha1, &data[20..]))
 }
