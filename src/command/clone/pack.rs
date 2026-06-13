@@ -57,7 +57,7 @@ pub enum ObjectType {
 }
 
 impl TryFrom<u8> for ObjectType {
-    type Error = String;
+    type Error = anyhow::Error;
 
     fn try_from(value: u8) -> std::prelude::v1::Result<Self, Self::Error> {
         match value {
@@ -67,7 +67,7 @@ impl TryFrom<u8> for ObjectType {
             4 => Ok(ObjectType::Tag),
             6 => Ok(ObjectType::OfsDelta),
             7 => Ok(ObjectType::RefDelta),
-            _ => Err(format!("invalid: {}", value)),
+            _ => Err(anyhow!("invalid object type: {}", value)),
         }
     }
 }
@@ -82,8 +82,7 @@ pub struct PackFileObject {
 impl PackFileObject {
     pub fn parse_next(data: &[u8]) -> Result<(usize, Self)> {
         let first_byte = data[0];
-        let obj_type =
-            ObjectType::try_from((first_byte >> 4) & 0b111).map_err(|e| anyhow!("{}", e))?;
+        let obj_type = ObjectType::try_from((first_byte >> 4) & 0b111)?;
 
         // MSB
         let mut obj_size = (first_byte & 0b1111) as usize;
