@@ -8,7 +8,7 @@ use client::GitApiClient;
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let repo_url = canonicalize_repo_url(repo_url);
-    let local_dir = resolve_local_dir(&repo_url, local_dir);
+    let local_dir = resolve_local_dir(&repo_url, local_dir)?;
 
     dbg!(&local_dir);
 
