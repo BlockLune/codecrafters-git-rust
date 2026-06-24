@@ -33,7 +33,7 @@ impl PackFile {
         let mut objects = Vec::with_capacity(n_objects as usize);
 
         for _ in 0..n_objects {
-            let (consumed, obj) = PackFileObject::parse_next(&data[offset..])?;
+            let (consumed, obj) = PackFileObject::parse_next(&data[offset..], offset)?;
             offset += consumed;
             objects.push(obj);
         }
@@ -76,14 +76,27 @@ impl TryFrom<u8> for ObjectType {
 }
 
 #[derive(Debug)]
+pub enum ObjectData {
+    Base(Vec<u8>),
+    OfsDelta {
+        base_distance: usize,
+        delta_data: Vec<u8>,
+    },
+    RefDelta { sha: [u8; 20], delta_data: Vec<u8> },
+}
+
+#[derive(Debug)]
 pub struct PackFileObject {
+    pub offset: usize,
     pub obj_type: ObjectType,
     pub obj_size: usize,
-    pub content: Vec<u8>,
+    pub data: ObjectData,
 }
 
 impl PackFileObject {
-    pub fn parse_next(data: &[u8]) -> Result<(usize, Self)> {
+    pub fn parse_next(data: &[u8], pack_offset: usize) -> Result<(usize, Self)> {
+        ensure!(!data.is_empty(), "truncated pack object");
+
         let first_byte = data[0];
         let obj_type = ObjectType::try_from((first_byte >> 4) & 0b111)?;
 
@@ -104,37 +117,69 @@ impl PackFileObject {
                 Ok((
                     header_len + compressed_len,
                     Self {
+                        offset: pack_offset,
                         obj_type,
                         obj_size,
-                        content: decompressed,
+                        data: ObjectData::Base(decompressed),
                     },
                 ))
             }
             ObjectType::OfsDelta => {
-                let (offset, compressed_delta_data) = parse_ofs_delta(&data[header_len..]);
-                let delta_data = decompress_zlib(compressed_delta_data)?;
-                todo!();
+                let (base_distance, base_ref_len) = parse_ofs_delta(&data[header_len..])?;
+                let (delta_data, compressed_len) =
+                    decompress_zlib(&data[header_len + base_ref_len..])?;
+                Ok((
+                    header_len + base_ref_len + compressed_len,
+                    Self {
+                        offset: pack_offset,
+                        obj_type,
+                        obj_size,
+                        data: ObjectData::OfsDelta {
+                            base_distance,
+                            delta_data,
+                        },
+                    },
+                ))
             }
             ObjectType::RefDelta => {
-                let (base_sha1, compressed_delta_data) = parse_ref_delta(&data[header_len..])?;
-                let delta_data = decompress_zlib(compressed_delta_data)?;
-                todo!();
+                let (base_sha1, base_ref_len) = parse_ref_delta(&data[header_len..])?;
+                let (delta_data, compressed_len) =
+                    decompress_zlib(&data[header_len + base_ref_len..])?;
+                Ok((
+                    header_len + base_ref_len + compressed_len,
+                    Self {
+                        offset: pack_offset,
+                        obj_type,
+                        obj_size,
+                        data: ObjectData::RefDelta {
+                            sha: base_sha1,
+                            delta_data,
+                        },
+                    },
+                ))
             }
         }
     }
 }
 
-fn parse_ofs_delta(data: &[u8]) -> (usize, &[u8]) {
+fn parse_ofs_delta(data: &[u8]) -> Result<(usize, usize)> {
+    ensure!(!data.is_empty(), "truncated ofs-delta offset");
+
     let mut offset: usize = (data[0] & 0b01111111) as usize;
     let mut i: usize = 1;
     while i < data.len() && (data[i - 1] & 0b10000000) != 0 {
         offset = (offset + 1) << 7 | (data[i] & 0b01111111) as usize;
         i += 1;
     }
-    (offset, &data[i..])
+    ensure!(
+        data[i - 1] & 0b10000000 == 0,
+        "truncated ofs-delta offset"
+    );
+
+    Ok((offset, i))
 }
 
-fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], &[u8])> {
+fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], usize)> {
     let base_sha1: [u8; 20] = data[..20].try_into().context("truncated ref-delta")?;
-    Ok((base_sha1, &data[20..]))
+    Ok((base_sha1, 20))
 }
