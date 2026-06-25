@@ -1,8 +1,9 @@
 use anyhow::{Result, ensure};
+use std::collections::HashMap;
 
 mod object;
 
-use object::{RawPackObj, ResolvedPackObj, parse_next_raw_pack_obj, resolve_pack_obj};
+use object::{RawPackObj, ResolvedPackObj, parse_next_raw_pack_obj};
 
 pub struct PackFile {
     pub version: u32,
@@ -38,6 +39,24 @@ impl PackFile {
             let (raw_obj, consumed) = parse_next_raw_pack_obj(&data[offset..], offset)?;
             offset += consumed;
             raw_objects.push(raw_obj);
+        }
+
+        // given an offset, get the index of the raw object in raw_objects
+        let mut offset_to_raw_index = HashMap::new();
+        for (i, raw_obj) in raw_objects.iter().enumerate() {
+            offset_to_raw_index.insert(raw_obj.offset(), i);
+        }
+
+        // resolve objects
+        let mut resolved_cache = HashMap::new();
+        for (i, _) in raw_objects.iter().enumerate() {
+            let resolved = ResolvedPackObj::try_from_raw(
+                i,
+                &raw_objects,
+                &offset_to_raw_index,
+                &mut resolved_cache,
+            )?;
+            resolved_objects.push(resolved);
         }
 
         // TODO: verify checksum at data[offset..offset+20]

@@ -28,7 +28,7 @@ impl TryFrom<u8> for RawKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BaseKind {
     Commit = 1,
     Tree = 2,

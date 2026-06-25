@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{Context, Result, ensure};
 use sha1::{Digest, Sha1};
 
@@ -5,7 +7,7 @@ mod delta;
 mod kind;
 
 use crate::util::compression::decompress_zlib;
-use delta::{Delta, parse_delta};
+use delta::{Delta, apply_delta, parse_delta};
 use kind::{BaseKind, RawKind};
 
 #[derive(Debug)]
@@ -141,6 +143,7 @@ fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], usize)> {
     Ok((base_sha1, 20))
 }
 
+#[derive(Clone)]
 pub struct ResolvedPackObj {
     offset: usize,
     kind: BaseKind,
@@ -154,8 +157,63 @@ impl ResolvedPackObj {
         data.extend_from_slice(&self.data);
         Sha1::digest(data).try_into().unwrap()
     }
-}
 
-pub fn resolve_pack_obj(raw_obj: RawPackObj) -> Result<ResolvedPackObj> {
-    todo!()
+    pub fn try_from_raw(
+        index: usize,
+        raw_objects: &[RawPackObj],
+        offset_to_raw_index: &HashMap<usize, usize>,
+        resolved_cache: &mut HashMap<usize, ResolvedPackObj>,
+    ) -> Result<Self> {
+        if let Some(resolved) = resolved_cache.get(&index) {
+            return Ok(resolved.clone());
+        }
+
+        let resolved = match &raw_objects[index] {
+            RawPackObj::Base {
+                offset,
+                kind,
+                size: _,
+                data,
+            } => ResolvedPackObj {
+                offset: *offset,
+                kind: kind.clone(),
+                data: data.to_vec(),
+            },
+            RawPackObj::OfsDelta {
+                offset,
+                size: _,
+                base_distance,
+                delta,
+            } => {
+                let base_offset = offset - base_distance;
+                let base_index = *offset_to_raw_index.get(&base_offset).context(format!(
+                    "failed to get raw object's index from offset {}",
+                    offset
+                ))?;
+                let base_resolved = Self::try_from_raw(
+                    base_index,
+                    raw_objects,
+                    offset_to_raw_index,
+                    resolved_cache,
+                )?;
+
+                ResolvedPackObj {
+                    offset: *offset,
+                    kind: base_resolved.kind,
+                    data: apply_delta(&base_resolved.data, delta)?,
+                }
+            }
+            RawPackObj::RefDelta {
+                offset,
+                size,
+                base_sha1,
+                delta,
+            } => {
+                todo!();
+            }
+        };
+
+        resolved_cache.insert(index, resolved.clone());
+        Ok(resolved)
+    }
 }

@@ -7,7 +7,7 @@ pub struct Delta {
     instructions: Vec<DeltaInstruction>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DeltaInstruction {
     Copy { offset: usize, size: usize },
     Insert(Vec<u8>),
@@ -80,7 +80,6 @@ pub fn parse_delta(data: &[u8]) -> Result<Delta> {
     })
 }
 
-
 fn parse_delta_size(data: &[u8]) -> Result<(usize, usize)> {
     ensure!(!data.is_empty(), "truncated delta size");
 
@@ -103,4 +102,32 @@ fn parse_delta_size(data: &[u8]) -> Result<(usize, usize)> {
     }
 
     Ok((size, i))
+}
+
+pub fn apply_delta(base_data: &[u8], delta: &Delta) -> Result<Vec<u8>> {
+    ensure!(
+        base_data.len() == delta.base_size,
+        "base size doesn't match"
+    );
+
+    let mut result = Vec::with_capacity(delta.result_size);
+    let instructions = delta.instructions.clone();
+    for instruction in instructions {
+        match instruction {
+            DeltaInstruction::Copy { offset, size } => {
+                let to_copy = &base_data[offset..offset + size];
+                result.extend_from_slice(to_copy);
+            }
+            DeltaInstruction::Insert(to_insert) => {
+                result.extend(to_insert.into_iter());
+            }
+        }
+    }
+
+    ensure!(
+        result.len() == delta.result_size,
+        "result size doesn't match"
+    );
+
+    Ok(result)
 }
