@@ -1,86 +1,122 @@
 use anyhow::{Context, Result, ensure};
 
 mod delta;
-mod odata;
-mod otype;
+mod kind;
 
 use crate::util::compression::decompress_zlib;
-use odata::ObjectData;
-use otype::ObjectType;
+use delta::{Delta, parse_delta};
+use kind::{BaseKind, RawKind};
 
 #[derive(Debug)]
-pub struct PackFileObject {
-    pub offset: usize,
-    pub obj_type: ObjectType,
-    pub obj_size: usize,
-    pub data: ObjectData,
+#[allow(unused)]
+pub enum RawPackObj {
+    Base {
+        offset: usize,
+        kind: BaseKind,
+        size: usize,
+        data: Vec<u8>,
+    },
+    OfsDelta {
+        offset: usize,
+        size: usize,
+        base_distance: usize,
+        delta: Delta,
+    },
+    RefDelta {
+        offset: usize,
+        size: usize,
+        base_sha1: [u8; 20],
+        delta: Delta,
+    },
 }
 
-impl PackFileObject {
-    pub fn parse_next(data: &[u8], pack_offset: usize) -> Result<(usize, Self)> {
-        ensure!(!data.is_empty(), "truncated pack object");
-
-        let first_byte = data[0];
-        let obj_type = ObjectType::try_from((first_byte >> 4) & 0b111)?;
-
-        // MSB
-        let mut obj_size = (first_byte & 0b1111) as usize;
-        let mut idx = 1;
-        let mut shift = 4;
-        while idx < data.len() && (data[idx - 1] & 0b10000000) != 0 {
-            obj_size |= ((data[idx] & 0b01111111) as usize) << shift;
-            shift += 7;
-            idx += 1;
+impl RawPackObj {
+    pub fn offset(&self) -> usize {
+        match self {
+            RawPackObj::Base {
+                offset,
+                kind: _,
+                size: _,
+                data: _,
+            } => *offset,
+            RawPackObj::OfsDelta {
+                offset,
+                size: _,
+                base_distance: _,
+                delta: _,
+            } => *offset,
+            RawPackObj::RefDelta {
+                offset,
+                size: _,
+                base_sha1: _,
+                delta: _,
+            } => *offset,
         }
-        let header_len = idx;
+    }
+}
 
-        match obj_type {
-            ObjectType::Commit | ObjectType::Tree | ObjectType::Blob | ObjectType::Tag => {
-                let (decompressed, compressed_len) = decompress_zlib(&data[header_len..])?;
-                Ok((
-                    header_len + compressed_len,
-                    Self {
-                        offset: pack_offset,
-                        obj_type,
-                        obj_size,
-                        data: ObjectData::Base(decompressed),
-                    },
-                ))
-            }
-            ObjectType::OfsDelta => {
-                let (base_distance, base_ref_len) = parse_ofs_delta(&data[header_len..])?;
-                let (delta_data, compressed_len) =
-                    decompress_zlib(&data[header_len + base_ref_len..])?;
-                Ok((
-                    header_len + base_ref_len + compressed_len,
-                    Self {
-                        offset: pack_offset,
-                        obj_type,
-                        obj_size,
-                        data: ObjectData::OfsDelta {
-                            base_distance,
-                            delta_data,
-                        },
-                    },
-                ))
-            }
-            ObjectType::RefDelta => {
-                let (base_sha1, base_ref_len) = parse_ref_delta(&data[header_len..])?;
-                let (delta_data, compressed_len) =
-                    decompress_zlib(&data[header_len + base_ref_len..])?;
-                Ok((
-                    header_len + base_ref_len + compressed_len,
-                    Self {
-                        offset: pack_offset,
-                        obj_type,
-                        obj_size,
-                        data: ObjectData::RefDelta {
-                            sha: base_sha1,
-                            delta_data,
-                        },
-                    },
-                ))
-            }
+pub fn parse_next_raw_pack_obj(data: &[u8], pack_offset: usize) -> Result<(RawPackObj, usize)> {
+    ensure!(!data.is_empty(), "truncated pack object");
+
+    let first_byte = data[0];
+    let raw_kind = RawKind::try_from((first_byte >> 4) & 0b111)?;
+
+    // MSB -> calc size field
+    let mut size = (first_byte & 0b1111) as usize;
+    let mut idx = 1;
+    let mut shift = 4;
+    while idx < data.len() && (data[idx - 1] & 0b1000_0000) != 0 {
+        size |= ((data[idx] & 0b0111_1111) as usize) << shift;
+        shift += 7;
+        idx += 1;
+    }
+
+    let header_len = idx;
+
+    match raw_kind {
+        RawKind::Commit | RawKind::Tree | RawKind::Blob | RawKind::Tag => {
+            let base_kind = BaseKind::try_from(raw_kind)?;
+            let (decompressed, compressed_len) = decompress_zlib(&data[header_len..])?;
+
+            let obj = RawPackObj::Base {
+                offset: pack_offset,
+                kind: base_kind,
+                size,
+                data: decompressed,
+            };
+            let consumed = header_len + compressed_len;
+
+            Ok((obj, consumed))
+        }
+        RawKind::OfsDelta => {
+            let (base_distance, base_ref_len) = parse_ofs_delta(&data[header_len..])?;
+            let (delta_data, compressed_len) = decompress_zlib(&data[header_len + base_ref_len..])?;
+            let delta = parse_delta(&delta_data)?;
+
+            let obj = RawPackObj::OfsDelta {
+                offset: pack_offset,
+                size,
+                base_distance,
+                delta,
+            };
+            let consumed = header_len + base_ref_len + compressed_len;
+
+            Ok((obj, consumed))
+        }
+        RawKind::RefDelta => {
+            let (base_sha1, base_ref_len) = parse_ref_delta(&data[header_len..])?;
+            let (delta_data, compressed_len) = decompress_zlib(&data[header_len + base_ref_len..])?;
+            let delta = parse_delta(&delta_data)?;
+
+            let obj = RawPackObj::RefDelta {
+                offset: pack_offset,
+                size,
+                base_sha1,
+                delta,
+            };
+            let consumed = header_len + base_ref_len + compressed_len;
+
+            Ok((obj, consumed))
         }
     }
 }
@@ -102,4 +138,15 @@ fn parse_ofs_delta(data: &[u8]) -> Result<(usize, usize)> {
 fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], usize)> {
     let base_sha1: [u8; 20] = data[..20].try_into().context("truncated ref-delta")?;
     Ok((base_sha1, 20))
+}
+
+pub struct ResolvedPackObj {
+    offset: usize,
+    kind: BaseKind,
+    data: Vec<u8>,
+    sha1: [u8; 20],
+}
+
+pub fn resolve_pack_obj(raw_obj: RawPackObj) -> Result<ResolvedPackObj> {
+    todo!()
 }

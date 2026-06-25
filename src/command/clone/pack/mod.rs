@@ -2,12 +2,12 @@ use anyhow::{Result, ensure};
 
 mod object;
 
-use object::PackFileObject;
+use object::{RawPackObj, ResolvedPackObj, parse_next_raw_pack_obj, resolve_pack_obj};
 
 pub struct PackFile {
     pub version: u32,
     pub n_objects: u32,
-    pub objects: Vec<PackFileObject>,
+    pub objects: Vec<ResolvedPackObj>,
 }
 
 impl PackFile {
@@ -31,21 +31,21 @@ impl PackFile {
 
         const HEADER_LEN: usize = IDENTIFIER_LEN + VERSION_LEN + N_OBJECTS_LEN;
         let mut offset = HEADER_LEN;
-        let mut objects = Vec::with_capacity(n_objects as usize);
+        let mut raw_objects: Vec<RawPackObj> = Vec::with_capacity(n_objects as usize);
+        let mut resolved_objects: Vec<ResolvedPackObj> = Vec::with_capacity(n_objects as usize);
 
         for _ in 0..n_objects {
-            let (consumed, obj) = PackFileObject::parse_next(&data[offset..], offset)?;
+            let (raw_obj, consumed) = parse_next_raw_pack_obj(&data[offset..], offset)?;
             offset += consumed;
-            objects.push(obj);
+            raw_objects.push(raw_obj);
         }
-        dbg!(&offset);
 
         // TODO: verify checksum at data[offset..offset+20]
 
         Ok(Self {
             version,
             n_objects,
-            objects,
+            objects: resolved_objects,
         })
     }
 }
