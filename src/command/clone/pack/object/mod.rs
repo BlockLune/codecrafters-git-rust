@@ -176,9 +176,9 @@ impl ResolvedPackObj {
         offset_to_raw_index: &HashMap<usize, usize>,
         sha1_to_raw_index: &mut HashMap<[u8; 20], usize>,
         resolved_cache: &mut HashMap<usize, ResolvedPackObj>,
-    ) -> Result<Self> {
+    ) -> Result<Option<Self>> {
         if let Some(resolved) = resolved_cache.get(&index) {
-            return Ok(resolved.clone());
+            return Ok(Some(resolved.clone()));
         }
 
         let resolved = match &raw_objects[index] {
@@ -187,11 +187,11 @@ impl ResolvedPackObj {
                 kind,
                 size: _,
                 data,
-            } => ResolvedPackObj {
+            } => Some(ResolvedPackObj {
                 offset: *offset,
                 kind: kind.clone(),
                 data: data.to_vec(),
-            },
+            }),
             RawPackObj::OfsDelta {
                 offset,
                 size: _,
@@ -203,18 +203,20 @@ impl ResolvedPackObj {
                     "failed to get raw object's index from offset {}",
                     offset
                 ))?;
-                let base_resolved = Self::try_from_raw(
+
+                match Self::try_from_raw(
                     base_index,
                     raw_objects,
                     offset_to_raw_index,
                     sha1_to_raw_index,
                     resolved_cache,
-                )?;
-
-                ResolvedPackObj {
-                    offset: *offset,
-                    kind: base_resolved.kind,
-                    data: apply_delta(&base_resolved.data, delta)?,
+                )? {
+                    Some(base_resolved) => Some(ResolvedPackObj {
+                        offset: *offset,
+                        kind: base_resolved.kind,
+                        data: apply_delta(&base_resolved.data, delta)?,
+                    }),
+                    None => None,
                 }
             }
             RawPackObj::RefDelta {
@@ -222,30 +224,32 @@ impl ResolvedPackObj {
                 size: _,
                 base_sha1,
                 delta,
-            } => {
-                let base_index = *sha1_to_raw_index.get(base_sha1).context(format!(
-                    "failed to get raw object's index from base_sha1 {}",
-                    hex::encode(base_sha1)
-                ))?;
-                let base_resolved = Self::try_from_raw(
-                    base_index,
-                    raw_objects,
-                    offset_to_raw_index,
-                    sha1_to_raw_index,
-                    resolved_cache,
-                )?;
-
-                ResolvedPackObj {
-                    offset: *offset,
-                    kind: base_resolved.kind.clone(),
-                    data: apply_delta(&base_resolved.data, delta)?,
+            } => match sha1_to_raw_index.get(base_sha1) {
+                Some(&base_index) => {
+                    match Self::try_from_raw(
+                        base_index,
+                        raw_objects,
+                        offset_to_raw_index,
+                        sha1_to_raw_index,
+                        resolved_cache,
+                    )? {
+                        Some(base_resolved) => Some(ResolvedPackObj {
+                            offset: *offset,
+                            kind: base_resolved.kind.clone(),
+                            data: apply_delta(&base_resolved.data, delta)?,
+                        }),
+                        None => None,
+                    }
                 }
-            }
+                None => None,
+            },
         };
 
-        resolved_cache.insert(index, resolved.clone());
-        // we need to compute sha1 for all base and ofs_delta objects
-        sha1_to_raw_index.insert((&resolved).sha1(), index);
+        if let Some(resolved) = resolved.clone() {
+            // register this resolved object's sha for later ref-delta lookups
+            sha1_to_raw_index.insert((&resolved).sha1(), index);
+            resolved_cache.insert(index, resolved);
+        }
 
         Ok(resolved)
     }

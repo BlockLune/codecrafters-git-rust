@@ -1,5 +1,5 @@
 use anyhow::{Result, ensure};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod object;
 
@@ -52,35 +52,51 @@ impl PackFile {
 
         // resolve objects
         let mut resolved_cache = HashMap::new();
-        // first iteration we resolve all base and ofs_delta objects
+        let mut pending_raw_indexes = HashSet::new();
+        // first iteration we try to resolve any base and ofs_delta objects that can be resolved
         for (i, raw_obj) in raw_objects.iter().enumerate() {
             if raw_obj.is_ref_delta() {
+                pending_raw_indexes.insert(i);
                 continue;
             }
             // we also update sha1_to_raw_index here
-            let resolved = ResolvedPackObj::try_from_raw(
+            if let Some(resolved) = ResolvedPackObj::try_from_raw(
                 i,
                 &raw_objects,
                 &offset_to_raw_index,
                 &mut sha1_to_raw_index,
                 &mut resolved_cache,
-            )?;
-            resolved_objects.push(resolved);
-        }
-        // second iteration we focus on ref_delta objects
-        for (i, raw_obj) in raw_objects.iter().enumerate() {
-            if !raw_obj.is_ref_delta() {
-                continue;
+            )? {
+                resolved_objects.push(resolved);
+            } else {
+                pending_raw_indexes.insert(i);
             }
-            let resolved = ResolvedPackObj::try_from_raw(
-                i,
-                &raw_objects,
-                &offset_to_raw_index,
-                &mut sha1_to_raw_index,
-                &mut resolved_cache,
-            )?;
-            resolved_objects.push(resolved);
         }
+        // keep retrying pending objects until every resolvable object is resolved
+        while !pending_raw_indexes.is_empty() {
+            let mut resolved_something = false;
+            for i in pending_raw_indexes.clone().into_iter() {
+                if let Some(resolved) = ResolvedPackObj::try_from_raw(
+                    i,
+                    &raw_objects,
+                    &offset_to_raw_index,
+                    &mut sha1_to_raw_index,
+                    &mut resolved_cache,
+                )? {
+                    resolved_objects.push(resolved);
+                    pending_raw_indexes.remove(&i);
+                    resolved_something = true;
+                }
+            }
+            if !resolved_something {
+                break;
+            }
+        }
+
+        ensure!(
+            pending_raw_indexes.is_empty(),
+            "failed to resolve all packfile objects"
+        );
 
         // TODO: verify checksum at data[offset..offset+20]
 
