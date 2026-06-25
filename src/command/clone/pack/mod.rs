@@ -7,7 +7,9 @@ mod object;
 use object::{RawPackObj, ResolvedPackObj, parse_next_raw_pack_obj};
 
 pub struct PackFile {
+    #[allow(unused)]
     pub version: u32,
+    #[allow(unused)]
     pub n_objects: u32,
     pub objects: Vec<ResolvedPackObj>,
 }

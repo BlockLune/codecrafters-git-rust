@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use std::path::PathBuf;
 
 mod client;
 mod pack;
@@ -10,19 +11,16 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let repo_url = canonicalize_repo_url(repo_url);
     let local_dir = resolve_local_dir(&repo_url, local_dir)?;
 
-    dbg!(&local_dir);
-
     let client = GitApiClient::new(&repo_url);
     let discovery = client.discover_refs().await?;
 
     let head_sha1 = discovery.head_sha1()?;
     let pack_file = client.fetch_pack_file(head_sha1).await?;
 
-    dbg!(pack_file.version);
-    dbg!(pack_file.n_objects);
-    dbg!(pack_file.objects);
-
     // TODO: write pack_file to disk
+    for object in pack_file.objects {
+        object.write_to_disk(&PathBuf::from(&local_dir))?;
+    }
 
     Ok(())
 }

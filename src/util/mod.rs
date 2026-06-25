@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 pub(crate) mod compression;
+pub(crate) mod disk;
 pub(crate) mod pkt_line;
 
 fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {

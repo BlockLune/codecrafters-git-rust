@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::{Context, Result, ensure};
 use sha1::{Digest, Sha1};
@@ -7,6 +7,7 @@ mod delta;
 mod kind;
 
 use crate::util::compression::decompress_zlib;
+use crate::util::disk::write_to_disk;
 use delta::{Delta, apply_delta, parse_delta};
 use kind::{BaseKind, RawKind};
 
@@ -157,6 +158,7 @@ fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], usize)> {
 
 #[derive(Debug, Clone)]
 pub struct ResolvedPackObj {
+    #[allow(unused)]
     offset: usize,
     kind: BaseKind,
     data: Vec<u8>,
@@ -168,6 +170,13 @@ impl ResolvedPackObj {
         let mut data = Vec::from(format!("{} {}\0", kind_name, self.data.len()).as_bytes());
         data.extend_from_slice(&self.data);
         Sha1::digest(data).try_into().unwrap()
+    }
+
+    pub fn write_to_disk(&self, root: &Path) -> Result<()> {
+        let mut to_write_data =
+            Vec::from(format!("{} {}\0", self.kind, self.data.len()).as_bytes());
+        to_write_data.extend_from_slice(&self.data);
+        write_to_disk(root, &self.sha1(), &to_write_data)
     }
 
     pub fn try_from_raw(
