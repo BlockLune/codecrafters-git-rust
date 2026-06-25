@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 use std::path::PathBuf;
+use std::fs;
 
 mod client;
 mod pack;
@@ -21,6 +22,12 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     let head_sha1 = discovery.head_sha1()?;
     let pack_file = client.fetch_pack_file(head_sha1).await?;
+
+    // write files to disk
+    if local_dir.exists() {
+        bail!("fatal: destination path '{}' already exists.", local_dir.display());
+    }
+    fs::create_dir_all(&local_dir)?;
 
     for object in pack_file.objects {
         object.write_to_disk(&local_dir)?;
