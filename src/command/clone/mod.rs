@@ -5,8 +5,12 @@ mod client;
 mod pack;
 mod refs;
 
-use crate::util::disk::{write_branch_ref, write_head_symref};
+use crate::util::disk::{
+    write_branch_ref, write_head_symref, write_remote_head_symref, write_remote_tracking_ref,
+};
 use client::GitApiClient;
+
+const REMOTE_NAME: &str = "origin";
 
 pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let repo_url = canonicalize_repo_url(repo_url);
@@ -18,19 +22,20 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let head_sha1 = discovery.head_sha1()?;
     let pack_file = client.fetch_pack_file(head_sha1).await?;
 
-    // TODO: write pack_file to disk
     for object in pack_file.objects {
         object.write_to_disk(&local_dir)?;
     }
     if let Some(symref_head) = discovery.symref_head() {
         write_head_symref(&local_dir, &symref_head)?;
+        write_branch_ref(&local_dir, &symref_head, head_sha1)?;
+        write_remote_head_symref(&local_dir, REMOTE_NAME, &symref_head)?;
     }
     for (ref_name, git_ref) in discovery.refs() {
         const PREFIX: &str = "refs/heads/";
         if !ref_name.starts_with(PREFIX) {
             continue;
         }
-        write_branch_ref(&local_dir, ref_name, git_ref.sha1())?;
+        write_remote_tracking_ref(&local_dir, REMOTE_NAME, ref_name, git_ref.sha1())?;
     }
 
     Ok(())
