@@ -20,6 +20,9 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     dbg!(pack_file.version);
     dbg!(pack_file.n_objects);
+    dbg!(pack_file.objects);
+
+    // TODO: write pack_file to disk
 
     Ok(())
 }

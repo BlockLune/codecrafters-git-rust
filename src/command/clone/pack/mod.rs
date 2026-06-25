@@ -1,4 +1,5 @@
 use anyhow::{Result, ensure};
+use sha1::{Digest, Sha1};
 use std::collections::{HashMap, HashSet};
 
 mod object;
@@ -98,7 +99,20 @@ impl PackFile {
             "failed to resolve all packfile objects"
         );
 
-        // TODO: verify checksum at data[offset..offset+20]
+        // verify checksum at data[offset..offset+20]
+        const CHECKSUM_LEN: usize = 20;
+        ensure!(
+            data.len() >= offset + CHECKSUM_LEN,
+            "truncated pack checksum"
+        );
+        let expected_checksum = &data[offset..offset + CHECKSUM_LEN];
+        let actual_checksum = Sha1::digest(&data[..offset]);
+        ensure!(
+            expected_checksum == &actual_checksum[..],
+            "invalid pack checksum: expected {}, got {}",
+            hex::encode(expected_checksum),
+            hex::encode(actual_checksum)
+        );
 
         Ok(Self {
             version,

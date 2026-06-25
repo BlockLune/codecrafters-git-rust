@@ -155,7 +155,7 @@ fn parse_ref_delta(data: &[u8]) -> Result<([u8; 20], usize)> {
     Ok((base_sha1, 20))
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ResolvedPackObj {
     offset: usize,
     kind: BaseKind,
