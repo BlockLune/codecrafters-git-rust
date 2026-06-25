@@ -3,7 +3,7 @@ use std::fs;
 use std::fs::Metadata;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::Path;
 
 pub(crate) mod compression;
 pub(crate) mod disk;
@@ -15,7 +15,7 @@ fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut header_finished = false;
 
     for byte in decompressed {
-        if *byte == b'\0' {
+        if !header_finished && *byte == b'\0' {
             header_finished = true;
             continue;
         }
@@ -30,9 +30,12 @@ fn split_header_content(decompressed: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((header, content))
 }
 
-pub fn get_decompressed_header_content_from_sha(obj_sha: &str) -> Result<(Vec<u8>, Vec<u8>)> {
+pub fn get_decompressed_header_content_from_sha(
+    root_path: &Path,
+    obj_sha: &str,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     let (dir, filename) = obj_sha.split_at(2);
-    let path = PathBuf::from(".git/objects/").join(dir).join(filename);
+    let path = root_path.join(".git/objects/").join(dir).join(filename);
     let data = fs::read(path)?;
     let (decompressed, _) = compression::decompress_zlib(&data)?;
     split_header_content(&decompressed)

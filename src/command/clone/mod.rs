@@ -1,13 +1,20 @@
-use anyhow::{Result, bail};
-use std::path::PathBuf;
+use anyhow::{Context, Result, bail};
 use std::fs;
+use std::path::PathBuf;
 
 mod client;
 mod pack;
 mod refs;
 
-use crate::util::disk::{
-    write_branch_ref, write_head_symref, write_remote_head_symref, write_remote_tracking_ref,
+use crate::object::tree::parse_tree_entries;
+use crate::util::{
+    disk::{
+        write_branch_ref,          //
+        write_head_symref,         //
+        write_remote_head_symref,  //
+        write_remote_tracking_ref, //
+    },
+    get_decompressed_header_content_from_sha,
 };
 use client::GitApiClient;
 
@@ -25,7 +32,10 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
 
     // write files to disk
     if local_dir.exists() {
-        bail!("fatal: destination path '{}' already exists.", local_dir.display());
+        bail!(
+            "fatal: destination path '{}' already exists.",
+            local_dir.display()
+        );
     }
     fs::create_dir_all(&local_dir)?;
 
@@ -44,6 +54,21 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
         }
         write_remote_tracking_ref(&local_dir, REMOTE_NAME, ref_name, git_ref.sha1())?;
     }
+
+    // checkout -- build the file tree from data in objects
+    let head_sha1_hex = hex::encode(head_sha1);
+    let (_, content) = get_decompressed_header_content_from_sha(&local_dir, &head_sha1_hex)?;
+    let start_pos = 1 + content
+        .iter()
+        .position(|byte| *byte == b' ')
+        .context("failed to parse head commit object")?;
+    let end_pos = content
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .context("failed to parse head commit object")?;
+    let tree_object_sha1_hex = std::str::from_utf8(&content[start_pos..end_pos])?;
+    let (_, content) = get_decompressed_header_content_from_sha(&local_dir, tree_object_sha1_hex)?;
+    let tree_entries = parse_tree_entries(&content)?;
 
     Ok(())
 }
