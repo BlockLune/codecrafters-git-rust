@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use std::convert::TryFrom;
+use std::fmt::Display;
 
 #[derive(Debug)]
 pub enum RawKind {
@@ -59,6 +60,17 @@ impl TryFrom<RawKind> for BaseKind {
             RawKind::Blob => Ok(BaseKind::Blob),
             RawKind::Tag => Ok(BaseKind::Tag),
             _ => Err(anyhow!("can't convert")),
+        }
+    }
+}
+
+impl Display for BaseKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Commit => write!(f, "commit"),
+            Self::Tree => write!(f, "tree"),
+            Self::Blob => write!(f, "blob"),
+            Self::Tag => write!(f, "tag"),
         }
     }
 }

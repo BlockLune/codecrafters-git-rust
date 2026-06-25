@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, ensure};
+use sha1::{Digest, Sha1};
 
 mod delta;
 mod kind;
@@ -144,7 +145,15 @@ pub struct ResolvedPackObj {
     offset: usize,
     kind: BaseKind,
     data: Vec<u8>,
-    sha1: [u8; 20],
+}
+
+impl ResolvedPackObj {
+    pub fn sha1(&self) -> [u8; 20] {
+        let kind_name = self.kind.to_string();
+        let mut data = Vec::from(format!("{} {}\0", kind_name, self.data.len()).as_bytes());
+        data.extend_from_slice(&self.data);
+        Sha1::digest(data).try_into().unwrap()
+    }
 }
 
 pub fn resolve_pack_obj(raw_obj: RawPackObj) -> Result<ResolvedPackObj> {
