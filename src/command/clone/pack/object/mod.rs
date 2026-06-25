@@ -56,6 +56,18 @@ impl RawPackObj {
             } => *offset,
         }
     }
+
+    pub fn is_ref_delta(&self) -> bool {
+        matches!(
+            self,
+            Self::RefDelta {
+                offset: _,
+                size: _,
+                base_sha1: _,
+                delta: _
+            }
+        )
+    }
 }
 
 pub fn parse_next_raw_pack_obj(data: &[u8], pack_offset: usize) -> Result<(RawPackObj, usize)> {
@@ -162,6 +174,7 @@ impl ResolvedPackObj {
         index: usize,
         raw_objects: &[RawPackObj],
         offset_to_raw_index: &HashMap<usize, usize>,
+        sha1_to_raw_index: &mut HashMap<[u8; 20], usize>,
         resolved_cache: &mut HashMap<usize, ResolvedPackObj>,
     ) -> Result<Self> {
         if let Some(resolved) = resolved_cache.get(&index) {
@@ -194,6 +207,7 @@ impl ResolvedPackObj {
                     base_index,
                     raw_objects,
                     offset_to_raw_index,
+                    sha1_to_raw_index,
                     resolved_cache,
                 )?;
 
@@ -205,15 +219,34 @@ impl ResolvedPackObj {
             }
             RawPackObj::RefDelta {
                 offset,
-                size,
+                size: _,
                 base_sha1,
                 delta,
             } => {
-                todo!();
+                let base_index = *sha1_to_raw_index.get(base_sha1).context(format!(
+                    "failed to get raw object's index from base_sha1 {}",
+                    hex::encode(base_sha1)
+                ))?;
+                let base_resolved = Self::try_from_raw(
+                    base_index,
+                    raw_objects,
+                    offset_to_raw_index,
+                    sha1_to_raw_index,
+                    resolved_cache,
+                )?;
+
+                ResolvedPackObj {
+                    offset: *offset,
+                    kind: base_resolved.kind.clone(),
+                    data: apply_delta(&base_resolved.data, delta)?,
+                }
             }
         };
 
         resolved_cache.insert(index, resolved.clone());
+        // we need to compute sha1 for all base and ofs_delta objects
+        sha1_to_raw_index.insert((&resolved).sha1(), index);
+
         Ok(resolved)
     }
 }

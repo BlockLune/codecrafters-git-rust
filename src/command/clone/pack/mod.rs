@@ -41,19 +41,42 @@ impl PackFile {
             raw_objects.push(raw_obj);
         }
 
-        // given an offset, get the index of the raw object in raw_objects
+        // given one offset, get the index of the raw object in raw_objects
         let mut offset_to_raw_index = HashMap::new();
         for (i, raw_obj) in raw_objects.iter().enumerate() {
             offset_to_raw_index.insert(raw_obj.offset(), i);
         }
 
+        // given the sha1, get the index of the raw object in raw_objects
+        let mut sha1_to_raw_index = HashMap::new();
+
         // resolve objects
         let mut resolved_cache = HashMap::new();
-        for (i, _) in raw_objects.iter().enumerate() {
+        // first iteration we resolve all base and ofs_delta objects
+        for (i, raw_obj) in raw_objects.iter().enumerate() {
+            if raw_obj.is_ref_delta() {
+                continue;
+            }
+            // we also update sha1_to_raw_index here
             let resolved = ResolvedPackObj::try_from_raw(
                 i,
                 &raw_objects,
                 &offset_to_raw_index,
+                &mut sha1_to_raw_index,
+                &mut resolved_cache,
+            )?;
+            resolved_objects.push(resolved);
+        }
+        // second iteration we focus on ref_delta objects
+        for (i, raw_obj) in raw_objects.iter().enumerate() {
+            if !raw_obj.is_ref_delta() {
+                continue;
+            }
+            let resolved = ResolvedPackObj::try_from_raw(
+                i,
+                &raw_objects,
+                &offset_to_raw_index,
+                &mut sha1_to_raw_index,
                 &mut resolved_cache,
             )?;
             resolved_objects.push(resolved);
