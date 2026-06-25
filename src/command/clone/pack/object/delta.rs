@@ -1,4 +1,4 @@
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 
 #[derive(Debug)]
 pub struct Delta {
@@ -68,7 +68,9 @@ pub fn parse_delta(data: &[u8]) -> Result<Delta> {
             instructions.push(DeltaInstruction::Copy { offset, size });
         } else {
             let size = opcode as usize;
-            instructions.push(DeltaInstruction::Insert(data[i..i + size].to_vec()));
+            let end = i.checked_add(size).context("overflow")?;
+            ensure!(end <= data.len(), "truncated delta insert");
+            instructions.push(DeltaInstruction::Insert(data[i..end].to_vec()));
             i += size;
         }
     }
@@ -115,7 +117,9 @@ pub fn apply_delta(base_data: &[u8], delta: &Delta) -> Result<Vec<u8>> {
     for instruction in instructions {
         match instruction {
             DeltaInstruction::Copy { offset, size } => {
-                let to_copy = &base_data[offset..offset + size];
+                let end = offset.checked_add(size).context("overflow")?;
+                ensure!(end <= base_data.len(), "delta copy out of bounds");
+                let to_copy = &base_data[offset..end];
                 result.extend_from_slice(to_copy);
             }
             DeltaInstruction::Insert(to_insert) => {
