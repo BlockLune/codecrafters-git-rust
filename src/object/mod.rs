@@ -2,7 +2,7 @@ use anyhow::Result;
 use sha1::{Digest, Sha1};
 use std::path::PathBuf;
 
-use crate::util::disk::write_to_disk;
+use crate::util::disk::write_loose_object;
 
 pub(crate) mod blob;
 pub(crate) mod commit;
@@ -16,6 +16,6 @@ pub trait GitObject {
     }
 
     fn write_to_disk(&self) -> Result<()> {
-        write_to_disk(&PathBuf::from("."), &self.sha1(), self.data())
+        write_loose_object(&PathBuf::from("."), &self.sha1(), self.data())
     }
 }

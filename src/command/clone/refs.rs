@@ -24,6 +24,7 @@ impl GitRef {
     }
 }
 
+#[derive(Debug)]
 pub struct RefDiscovery {
     refs: HashMap<String, GitRef>,
     #[allow(unused)]
@@ -72,7 +73,6 @@ impl RefDiscovery {
             .sha1())
     }
 
-    #[allow(unused)]
     pub fn symref_head(&self) -> Option<String> {
         for capability in &self.capabilities {
             if capability.starts_with("symref=HEAD:") {
@@ -80,5 +80,9 @@ impl RefDiscovery {
             }
         }
         None
+    }
+
+    pub fn refs(&self) -> &HashMap<String, GitRef> {
+        &self.refs
     }
 }

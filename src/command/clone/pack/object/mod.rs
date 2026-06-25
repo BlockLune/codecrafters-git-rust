@@ -7,7 +7,7 @@ mod delta;
 mod kind;
 
 use crate::util::compression::decompress_zlib;
-use crate::util::disk::write_to_disk;
+use crate::util::disk::write_loose_object;
 use delta::{Delta, apply_delta, parse_delta};
 use kind::{BaseKind, RawKind};
 
@@ -176,7 +176,7 @@ impl ResolvedPackObj {
         let mut to_write_data =
             Vec::from(format!("{} {}\0", self.kind, self.data.len()).as_bytes());
         to_write_data.extend_from_slice(&self.data);
-        write_to_disk(root, &self.sha1(), &to_write_data)
+        write_loose_object(root, &self.sha1(), &to_write_data)
     }
 
     pub fn try_from_raw(
