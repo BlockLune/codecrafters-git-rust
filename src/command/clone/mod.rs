@@ -113,14 +113,22 @@ fn write_dir_for_tree(tree_sha1_hex: &str, repo_root: &Path, current_dir: &Path)
         }
 
         let (_, content) = get_decompressed_header_content_from_sha(repo_root, &sha1_hex)?;
-        fs::write(&path, &content)?;
 
+        #[cfg(unix)]
         if tree_entry.mode == b"120000" {
-            // TODO: symlink
+            // symlink
+            let target = std::str::from_utf8(&content)?;
+            std::os::unix::fs::symlink(target, &path)?;
+            continue;
         }
 
+        fs::write(&path, &content)?;
+
+        #[cfg(unix)]
         if tree_entry.mode == b"100755" {
-            // TODO: executable
+            // executable
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
         }
     }
 
