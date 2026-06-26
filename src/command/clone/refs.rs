@@ -58,6 +58,8 @@ impl RefDiscovery {
             } else {
                 ref_name = std::str::from_utf8(rest)?;
             }
+            // pkt-line ref advertisements are text lines terminated by '\n'
+            let ref_name = ref_name.trim_end();
             let git_ref = GitRef::try_new(ref_name, &ref_sha1_hex)?;
             refs.insert(ref_name.to_string(), git_ref);
         }
