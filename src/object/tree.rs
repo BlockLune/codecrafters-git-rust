@@ -3,7 +3,6 @@ use anyhow::{Context, Result, ensure};
 use crate::object::GitObject;
 
 pub struct TreeEntry {
-    #[allow(unused)]
     pub mode: Vec<u8>,
     pub name: Vec<u8>,
     pub sha1_20: Vec<u8>,

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod client;
 mod pack;
@@ -66,9 +66,8 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
         .iter()
         .position(|byte| *byte == b'\n')
         .context("failed to parse head commit object")?;
-    let tree_object_sha1_hex = std::str::from_utf8(&content[start_pos..end_pos])?;
-    let (_, content) = get_decompressed_header_content_from_sha(&local_dir, tree_object_sha1_hex)?;
-    let tree_entries = parse_tree_entries(&content)?;
+    let tree_sha1_hex = std::str::from_utf8(&content[start_pos..end_pos])?;
+    write_dir_for_tree(tree_sha1_hex, &local_dir, &local_dir)?;
 
     Ok(())
 }
@@ -96,4 +95,34 @@ fn resolve_local_dir(repo_url: &str, local_dir: &str) -> Result<String> {
         .unwrap()
         .trim_end_matches(".git")
         .to_string())
+}
+
+fn write_dir_for_tree(tree_sha1_hex: &str, repo_root: &Path, current_dir: &Path) -> Result<()> {
+    let (_, content) = get_decompressed_header_content_from_sha(repo_root, tree_sha1_hex)?;
+    let tree_entries = parse_tree_entries(&content)?;
+    for tree_entry in tree_entries {
+        let name = std::str::from_utf8(&tree_entry.name)?;
+        let path = current_dir.join(name);
+        let sha1_hex = hex::encode(&tree_entry.sha1_20);
+
+        if tree_entry.mode == b"40000" {
+            // directory
+            fs::create_dir_all(&path)?;
+            write_dir_for_tree(&sha1_hex, repo_root, &path)?;
+            continue;
+        }
+
+        let (_, content) = get_decompressed_header_content_from_sha(repo_root, &sha1_hex)?;
+        fs::write(&path, &content)?;
+
+        if tree_entry.mode == b"120000" {
+            // TODO: symlink
+        }
+
+        if tree_entry.mode == b"100755" {
+            // TODO: executable
+        }
+    }
+
+    Ok(())
 }
