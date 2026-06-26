@@ -40,13 +40,18 @@ impl GitApiClient {
         Ok(discovery)
     }
 
-    pub async fn fetch_pack_file(&self, head_sha1: &[u8]) -> Result<PackFile> {
-        let want_payload = format!("want {}\n", hex::encode(head_sha1));
-
-        let want_pkt = pkt_line::encode(&want_payload);
+    pub async fn fetch_pack_file(
+        &self,
+        want_sha1s: impl IntoIterator<Item = &[u8]>,
+    ) -> Result<PackFile> {
+        let mut want_pkts = String::new();
+        for want_sha1 in want_sha1s {
+            let want_payload = format!("want {}\n", hex::encode(want_sha1));
+            let want_pkt = pkt_line::encode(&want_payload);
+            want_pkts.push_str(&want_pkt);
+        }
         let done_pkt = pkt_line::encode("done\n");
-
-        let body = Bytes::from(format!("{}0000{}", want_pkt, done_pkt));
+        let body = Bytes::from(format!("{}0000{}", want_pkts, done_pkt));
 
         let res = self
             .post("git-upload-pack")

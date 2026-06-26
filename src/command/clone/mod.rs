@@ -28,7 +28,14 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     let discovery = client.discover_refs().await?;
 
     let head_sha1 = discovery.head_sha1()?;
-    let pack_file = client.fetch_pack_file(head_sha1).await?;
+    let branch_refs = discovery.branch_refs().collect::<Vec<_>>();
+    let mut want_refs = Vec::new();
+    want_refs.push(head_sha1);
+    for (_, sha1) in &branch_refs {
+        want_refs.push(sha1);
+    }
+
+    let pack_file = client.fetch_pack_file(want_refs).await?;
 
     // write files to disk
     if local_dir.exists() {
@@ -42,17 +49,13 @@ pub async fn run(repo_url: &str, local_dir: &str) -> Result<()> {
     for object in pack_file.objects {
         object.write_to_disk(&local_dir)?;
     }
-    if let Some(symref_head) = discovery.symref_head() {
-        write_head_symref(&local_dir, &symref_head)?;
-        write_branch_ref(&local_dir, &symref_head, head_sha1)?;
-        write_remote_head_symref(&local_dir, REMOTE_NAME, &symref_head)?;
-    }
-    for (ref_name, git_ref) in discovery.refs() {
-        const PREFIX: &str = "refs/heads/";
-        if !ref_name.starts_with(PREFIX) {
-            continue;
-        }
-        write_remote_tracking_ref(&local_dir, REMOTE_NAME, ref_name, git_ref.sha1())?;
+
+    let default_branch = discovery.default_branch()?;
+    write_head_symref(&local_dir, &default_branch)?;
+    write_branch_ref(&local_dir, &default_branch, head_sha1)?;
+    write_remote_head_symref(&local_dir, REMOTE_NAME, &default_branch)?;
+    for (ref_name, sha1) in &branch_refs {
+        write_remote_tracking_ref(&local_dir, REMOTE_NAME, ref_name, sha1)?;
     }
 
     // checkout -- build the file tree from data in objects

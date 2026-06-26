@@ -27,7 +27,6 @@ impl GitRef {
 #[derive(Debug)]
 pub struct RefDiscovery {
     refs: HashMap<String, GitRef>,
-    #[allow(unused)]
     capabilities: Vec<String>,
 }
 
@@ -75,16 +74,25 @@ impl RefDiscovery {
             .sha1())
     }
 
-    pub fn symref_head(&self) -> Option<String> {
-        for capability in &self.capabilities {
-            if capability.starts_with("symref=HEAD:") {
-                return Some(capability.trim_start_matches("symref=HEAD:").to_string());
-            }
-        }
-        None
+    pub fn branch_refs(&self) -> impl Iterator<Item = (&str, &[u8])> {
+        const PREFIX: &str = "refs/heads/";
+        self.refs
+            .iter()
+            .filter(|(name, _)| name.starts_with(PREFIX))
+            .map(|(name, git_ref)| (name.as_str(), git_ref.sha1()))
     }
 
-    pub fn refs(&self) -> &HashMap<String, GitRef> {
-        &self.refs
+    pub fn default_branch(&self) -> Result<String> {
+        for capability in &self.capabilities {
+            if let Some(branch) = capability.strip_prefix("symref=HEAD:") {
+                return Ok(branch.to_string());
+            }
+        }
+
+        let head_sha1 = self.head_sha1()?;
+        self.branch_refs()
+            .find(|(_, sha1)| *sha1 == head_sha1)
+            .map(|(name, _)| name.to_string())
+            .context("could not determine default branch")
     }
 }
