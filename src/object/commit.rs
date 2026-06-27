@@ -24,7 +24,7 @@ impl CommitObject {
         content.extend_from_slice(format!("author {}\n", HARDCODE_AUTHOR).as_bytes());
         content.extend_from_slice(format!("committer {}\n", HARDCODE_AUTHOR).as_bytes());
         content.push(b'\n');
-        content.extend_from_slice(commit_msg.as_bytes());
+        content.extend_from_slice(format!("{}\n", commit_msg).as_bytes());
 
         let mut data = Vec::from(format!("commit {}\0", content.len()).as_bytes());
         data.extend_from_slice(&content);
